@@ -8,3 +8,4 @@ public class AutenticacaoException extends RuntimeException {
         super(message);
     }
 }
+

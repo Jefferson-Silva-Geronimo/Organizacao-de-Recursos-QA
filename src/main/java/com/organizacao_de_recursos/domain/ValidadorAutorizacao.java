@@ -41,3 +41,4 @@ public class ValidadorAutorizacao {
         return Collections.emptyList();
     }
 }
+

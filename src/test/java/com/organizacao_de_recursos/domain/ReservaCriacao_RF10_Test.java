@@ -365,3 +365,4 @@ class ReservaCriacao_RF10_Test {
         assertThat(encontrada.getId()).isEqualTo(200L);
     }
 }
+

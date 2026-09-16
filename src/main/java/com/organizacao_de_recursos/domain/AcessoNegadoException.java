@@ -8,3 +8,4 @@ public class AcessoNegadoException extends RuntimeException {
         super(message);
     }
 }
+

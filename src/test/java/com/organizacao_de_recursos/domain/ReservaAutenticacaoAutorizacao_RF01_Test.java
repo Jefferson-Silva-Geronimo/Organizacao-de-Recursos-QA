@@ -171,3 +171,4 @@ class ReservaAutenticacaoAutorizacao_RF01_Test {
                 .hasMessageContaining("Usuário inativo");
     }
 }
+

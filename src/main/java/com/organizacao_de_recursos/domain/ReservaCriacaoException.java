@@ -8,3 +8,4 @@ public class ReservaCriacaoException extends RuntimeException {
         super(message);
     }
 }
+

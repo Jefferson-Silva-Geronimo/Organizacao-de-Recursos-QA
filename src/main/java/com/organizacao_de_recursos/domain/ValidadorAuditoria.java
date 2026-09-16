@@ -52,4 +52,25 @@ public class ValidadorAuditoria {
     public void apagarAuditoria(Long reservaId) {
         throw new ReservaAuditoriaException("Auditoria não pode ser removida");
     }
+
+    public void registrarMudancasEmSequencia(Reserva reserva, Usuario usuario, List<String> transicoes) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void validarUsuarioAuditoria(Usuario usuario) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void registrarTentativaRecusada(Reserva reserva, Usuario usuario, String operacao, String motivo) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public List<Auditoria> obterAuditoriasOrdenadas(Long reservaId) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        return Collections.emptyList();
+    }
+
+    public void registrarTentativaApagamentoProibido(Reserva reserva, Usuario usuario) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
 }

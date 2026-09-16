@@ -12,6 +12,8 @@ public class Usuario {
     private String username;
     private Perfil perfil;
 
+    private boolean ativo = true;
+
     public Usuario(Long id, String username, Perfil perfil) {
         this.id = id;
         this.username = username;
@@ -28,5 +30,13 @@ public class Usuario {
 
     public Perfil getPerfil() {
         return perfil;
+    }
+
+    public boolean isAtivo() {
+        return ativo;
+    }
+
+    public void setAtivo(boolean ativo) {
+        this.ativo = ativo;
     }
 }

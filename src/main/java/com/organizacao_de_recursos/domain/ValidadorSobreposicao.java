@@ -1,5 +1,6 @@
 package com.organizacao_de_recursos.domain;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,5 +43,9 @@ public class ValidadorSobreposicao {
      */
     private boolean temSobreposicao(Reserva r1, Reserva r2) {
         return r1.getInicio().isBefore(r2.getFim()) && r1.getFim().isAfter(r2.getInicio());
+    }
+
+    public void validarAlteracaoReserva(Reserva reserva, LocalDateTime novoInicio, LocalDateTime novoFim) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
     }
 }

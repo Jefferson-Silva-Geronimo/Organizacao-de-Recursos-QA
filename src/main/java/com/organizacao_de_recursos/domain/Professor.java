@@ -43,6 +43,10 @@ public class Professor {
         return agenda;
     }
 
+    public void validarFormatoAgenda(String inicio, String fim) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
     // Classe interna para representar agendas
     public static class AgendaProfessor {
         private LocalDateTime inicio;

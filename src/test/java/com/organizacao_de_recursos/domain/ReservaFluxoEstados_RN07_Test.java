@@ -10,6 +10,18 @@ import static org.assertj.core.api.Assertions.*;
  * RN-07: Fluxo principal é SOLICITADA -> APROVADA -> EM_USO -> CONCLUIDA
  * Estados alternativos: REJEITADA, CANCELADA, NAO_COMPARECEU
  * Identifier: RN-07 | docs/prd.md:6.7
+ * 
+ * Casos de teste mapeados:
+ * - T-RN07-001: Happy Path - Fluxo completo
+ * - T-RN07-002: Happy Path - Cancelamento em SOLICITADA
+ * - T-RN07-003: Happy Path - Rejeição em SOLICITADA
+ * - T-RN07-004: Forbidden State - Transição não especificada
+ * - T-RN07-005: Forbidden State - Estado inválido
+ * - T-RN07-006: Forbidden State - Cancelar reserva iniciada
+ * - T-RN07-007: Conflicts - Rejeitar após APROVADA (transição retrógrada)
+ * - T-RN07-008: Boundary - Transição na fronteira de tempo
+ * - T-RN07-009: Invalid Input - Estado null ou vazio
+ * - T-RN07-010: Forbidden State - NAO_COMPARECEU a partir de estado inválido
  */
 @DisplayName("RN-07: Fluxo de Estados")
 class ReservaFluxoEstados_RN07_Test {
@@ -55,6 +67,22 @@ class ReservaFluxoEstados_RN07_Test {
     }
 
     @Test
+    @DisplayName("T-RN07-003: Happy Path - Rejeição em SOLICITADA")
+    void deveRejeitarReservaEmSolicitada() {
+        // Arrange
+        ValidadorFluxoEstados validador = new ValidadorFluxoEstados();
+        Reserva reserva = new Reserva();
+        reserva.setEstado("SOLICITADA");
+
+        // Act & Assert
+        assertThatNoException()
+                .isThrownBy(() -> validador.validarTransicao(reserva, "REJEITADA"));
+
+        reserva.setEstado("REJEITADA");
+        assertThat(reserva.getEstado()).isEqualTo("REJEITADA");
+    }
+
+    @Test
     @DisplayName("T-RN07-004: Forbidden State - Transição não especificada")
     void deveRecusarTransicaoNaoEspecificada() {
         // Arrange
@@ -94,5 +122,61 @@ class ReservaFluxoEstados_RN07_Test {
         assertThatThrownBy(() -> validador.validarTransicao(reserva, "CANCELADA"))
                 .isInstanceOf(ReservaFluxoEstadosException.class)
                 .hasMessageContaining("Reserva iniciada não pode ser cancelada");
+    }
+
+    @Test
+    @DisplayName("T-RN07-007: Conflicts - Rejeitar após APROVADA (transição retrógrada)")
+    void deveRecusarRejeicaoAposAprovacao() {
+        // Arrange
+        ValidadorFluxoEstados validador = new ValidadorFluxoEstados();
+        Reserva reserva = new Reserva();
+        reserva.setEstado("APROVADA");
+
+        // Act & Assert - APROVADA -> REJEITADA
+        assertThatThrownBy(() -> validador.validarTransicao(reserva, "REJEITADA"))
+                .isInstanceOf(ReservaFluxoEstadosException.class)
+                .hasMessageContaining("Transição não permitida");
+    }
+
+    @Test
+    @DisplayName("T-RN07-008: Boundary - Transição na fronteira de tempo")
+    void deveAceitarTransicaoNaFronteiraDeTempo() {
+        // Arrange
+        ValidadorFluxoEstados validador = new ValidadorFluxoEstados();
+        Reserva reserva = new Reserva();
+        reserva.setEstado("SOLICITADA");
+
+        // Act & Assert
+        assertThatNoException()
+                .isThrownBy(() -> validador.validarTransicao(reserva, "APROVADA"));
+    }
+
+    @Test
+    @DisplayName("T-RN07-009: Invalid Input - Estado null ou vazio")
+    void deveRecusarEstadoNullOuVazio() {
+        // Arrange
+        ValidadorFluxoEstados validador = new ValidadorFluxoEstados();
+        Reserva reserva = new Reserva();
+        reserva.setEstado("SOLICITADA");
+
+        // Act & Assert
+        assertThatThrownBy(() -> validador.validarTransicao(reserva, null))
+                .isInstanceOf(ReservaFluxoEstadosException.class);
+        assertThatThrownBy(() -> validador.validarTransicao(reserva, ""))
+                .isInstanceOf(ReservaFluxoEstadosException.class);
+    }
+
+    @Test
+    @DisplayName("T-RN07-010: Forbidden State - NAO_COMPARECEU a partir de estado inválido")
+    void deveRecusarNaoCompareceuDiretoDeSolicitada() {
+        // Arrange
+        ValidadorFluxoEstados validador = new ValidadorFluxoEstados();
+        Reserva reserva = new Reserva();
+        reserva.setEstado("SOLICITADA");
+
+        // Act & Assert - SOLICITADA -> NAO_COMPARECEU é proibido
+        assertThatThrownBy(() -> validador.validarTransicao(reserva, "NAO_COMPARECEU"))
+                .isInstanceOf(ReservaFluxoEstadosException.class)
+                .hasMessageContaining("Transição não permitida");
     }
 }

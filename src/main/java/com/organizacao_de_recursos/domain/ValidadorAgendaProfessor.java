@@ -42,4 +42,8 @@ public class ValidadorAgendaProfessor {
             }
         }
     }
+
+    public void validarAlteracaoAgenda(Reserva reserva, LocalDateTime novoInicio, LocalDateTime novoFim) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
 }

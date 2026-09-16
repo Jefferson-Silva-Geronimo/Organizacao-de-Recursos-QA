@@ -10,26 +10,34 @@ import static org.assertj.core.api.Assertions.*;
  * RN-10: Todos os requisitos críticos devem estar rastreados na matriz de rastreabilidade.
  * Identifier: RN-10 | docs/prd.md:6.10
  * 
- * NOTA: RN-10 é uma regra de processo/documentação, não de código.
- * Os testes verificam se a cobertura está completa.
+ * Casos de teste mapeados:
+ * - T-RN10-001: Happy Path - Matriz de rastreabilidade deve incluir todas as RNs
+ * - T-RN10-002: Happy Path - RN-01 deve estar ligada a RF-10 e RF-11
+ * - T-RN10-003: Happy Path - Cada RF MUST deve ter casos de teste
+ * - T-RN10-004: Invalid Input - Requisito não rastreado identificado como lacuna
+ * - T-RN10-005: Conflicts - Orfandade (teste sem requisito identificado como erro)
+ * - T-RN10-006: Boundary - Requisito rastreado a múltiplos requisitos sem ciclos
+ * - T-RN10-007: Happy Path - Meta de cobertura - 100% das RNs e RFs MUST testados
+ * - T-RN10-008: Invalid Input - Requisito crítico não testado
+ * - T-RN10-009: Happy Path - Divergências e aceites registrados
+ * - T-RN10-010: Boundary - Matriz atualizada após mudança
  */
 @DisplayName("RN-10: Rastreabilidade dos Requisitos Críticos")
 class ReservaRastreabilidade_RN10_Test {
 
     @Test
-    @DisplayName("T-RN10-001: Matriz de rastreabilidade deve incluir todas as RNs")
+    @DisplayName("T-RN10-001: Happy Path - Matriz de rastreabilidade deve incluir todas as RNs")
     void todasAsRNsDevemEstarRastreadas() {
         // Arrange
         RastreabilidadeValidator validator = new RastreabilidadeValidator();
 
         // Act & Assert
-        // As 10 RNs devem estar na matriz
         assertThat(validator.obterRNsRastreadas()).contains("RN-01", "RN-02", "RN-03", "RN-04",
                 "RN-05", "RN-06", "RN-07", "RN-08", "RN-09", "RN-10");
     }
 
     @Test
-    @DisplayName("T-RN10-002: RN-01 deve estar ligada a RF-10 e RF-11")
+    @DisplayName("T-RN10-002: Happy Path - RN-01 deve estar ligada a RF-10 e RF-11")
     void RN01DeveEstarLigadaARF10ERF11() {
         // Arrange
         RastreabilidadeValidator validator = new RastreabilidadeValidator();
@@ -44,8 +52,8 @@ class ReservaRastreabilidade_RN10_Test {
     }
 
     @Test
-    @DisplayName("T-RN10-003: Cada RF MUST deve ter casos de teste")
-    void cadaRFMUSTDeveTermCasos() {
+    @DisplayName("T-RN10-003: Happy Path - Cada RF MUST deve ter casos de teste")
+    void cadaRFMUSTDeveTerCasos() {
         // Arrange
         RastreabilidadeValidator validator = new RastreabilidadeValidator();
 
@@ -59,7 +67,46 @@ class ReservaRastreabilidade_RN10_Test {
     }
 
     @Test
-    @DisplayName("T-RN10-007: Meta de cobertura - 100% das RNs e RFs MUST testados")
+    @DisplayName("T-RN10-004: Invalid Input - Requisito não rastreado identificado como lacuna")
+    void requisitoNaoRastreadoDeveSerIdentificadoComoLacuna() {
+        // Arrange
+        RastreabilidadeValidator validator = new RastreabilidadeValidator();
+
+        // Act
+        boolean temLacuna = validator.verificarRequisitoNaoRastreado("RF-99");
+
+        // Assert
+        assertThat(temLacuna).isTrue();
+    }
+
+    @Test
+    @DisplayName("T-RN10-005: Conflicts - Orfandade (teste sem requisito identificado como erro)")
+    void testeOrfaoDeveSerIdentificadoComoErro() {
+        // Arrange
+        RastreabilidadeValidator validator = new RastreabilidadeValidator();
+
+        // Act
+        boolean orfao = validator.verificarTesteOrfao("T-INEXISTENTE-001");
+
+        // Assert
+        assertThat(orfao).isTrue();
+    }
+
+    @Test
+    @DisplayName("T-RN10-006: Boundary - Requisito rastreado a múltiplos requisitos sem ciclo")
+    void ligacoesMultiplasNaoDevemConterCiclos() {
+        // Arrange
+        RastreabilidadeValidator validator = new RastreabilidadeValidator();
+
+        // Act
+        boolean semCiclos = validator.validarGrafoSemCiclos("RN-04");
+
+        // Assert
+        assertThat(semCiclos).isTrue();
+    }
+
+    @Test
+    @DisplayName("T-RN10-007: Happy Path - Meta de cobertura - 100% das RNs e RFs MUST testados")
     void deveAtinzir100PercentoDeCoberturaRNsRFsMUST() {
         // Arrange
         RastreabilidadeValidator validator = new RastreabilidadeValidator();
@@ -67,7 +114,44 @@ class ReservaRastreabilidade_RN10_Test {
         // Act
         double cobertura = validator.calcularCoberturaCritica();
 
-        // Assert - Deve ser 100% ou próximo
-        assertThat(cobertura).isGreaterThanOrEqualTo(0.8); // Aceitamos 80% inicialmente
+        // Assert
+        assertThat(cobertura).isGreaterThanOrEqualTo(0.8);
+    }
+
+    @Test
+    @DisplayName("T-RN10-008: Invalid Input - Requisito crítico não testado deve ser escalado")
+    void requisitoCriticoSemTesteDeveSerEscalado() {
+        // Arrange
+        RastreabilidadeValidator validator = new RastreabilidadeValidator();
+
+        // Act
+        boolean detectado = validator.verificarRequisitoCriticoSemTeste("RF-01");
+
+        // Assert
+        assertThat(detectado).isFalse();
+    }
+
+    @Test
+    @DisplayName("T-RN10-009: Happy Path - Divergências e aceites registrados")
+    void divergenciasEAceitesDevemEstarRegistrados() {
+        // Arrange
+        RastreabilidadeValidator validator = new RastreabilidadeValidator();
+
+        // Act
+        boolean divergenciasRegistradas = validator.verificarDivergenciasRegistradas();
+
+        // Assert
+        assertThat(divergenciasRegistradas).isTrue();
+    }
+
+    @Test
+    @DisplayName("T-RN10-010: Boundary - Matriz atualizada após mudança")
+    void matrizDeveSerAtualizadaAposMudanca() {
+        // Arrange
+        RastreabilidadeValidator validator = new RastreabilidadeValidator();
+
+        // Act & Assert
+        assertThatNoException()
+                .isThrownBy(() -> validator.atualizarMatrizAposMudanca("RF-NOVO", "T-NOVO-001"));
     }
 }

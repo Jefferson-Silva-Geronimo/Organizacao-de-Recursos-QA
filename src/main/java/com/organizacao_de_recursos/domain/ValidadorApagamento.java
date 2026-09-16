@@ -34,4 +34,24 @@ public class ValidadorApagamento {
             throw new ReservaApagamentoException("Registros de reserva iniciada não podem ser removidos");
         }
     }
+
+    public void forcarCancelamento(Reserva reserva) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void validarCancelamentoNoInicio(Reserva reserva, java.time.LocalDateTime momentoCancelamento) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void apagarPorId(Long id) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void tentarApagarComAuditoria(Reserva reserva, Usuario usuario, ValidadorAuditoria auditoria) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void validarRejeicaoAposIniciada(Reserva reserva) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
 }

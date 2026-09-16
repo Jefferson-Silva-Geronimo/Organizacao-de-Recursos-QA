@@ -117,4 +117,40 @@ public class Reserva {
     public void adicionarProfessor(Professor professor) {
         this.professores.add(professor);
     }
+
+    private boolean approvalRequired;
+    private Usuario usuarioSolicitante;
+    private List<Recurso> materiais = new ArrayList<>();
+
+    public void validarFormatoHora(String inicio, String fim) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void alterarHorario(LocalDateTime novoInicio, LocalDateTime novoFim) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public boolean isApprovalRequired() {
+        return approvalRequired;
+    }
+
+    public void setApprovalRequired(boolean approvalRequired) {
+        this.approvalRequired = approvalRequired;
+    }
+
+    public Usuario getUsuarioSolicitante() {
+        return usuarioSolicitante;
+    }
+
+    public void setUsuarioSolicitante(Usuario usuarioSolicitante) {
+        this.usuarioSolicitante = usuarioSolicitante;
+    }
+
+    public List<Recurso> getMateriais() {
+        return materiais;
+    }
+
+    public void adicionarMaterial(Recurso material) {
+        this.materiais.add(material);
+    }
 }

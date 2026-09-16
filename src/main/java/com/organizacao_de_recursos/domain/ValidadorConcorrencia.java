@@ -35,4 +35,28 @@ public class ValidadorConcorrencia {
                ":I:" + reserva.getInicio() + 
                ":F:" + reserva.getFim();
     }
+
+    public int processarTriplaSimultanea(Reserva r1, Reserva r2, Reserva r3) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        return 0;
+    }
+
+    public boolean processarDuplaPeriodosAdjacentes(Reserva r1, Reserva r2) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        return false;
+    }
+
+    public void processarReservaComRestricao(Reserva rRestrita, Reserva rComum) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public boolean verificarConsistenciaAposConcorrencia(Reserva r1, Reserva r2) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        return false;
+    }
+
+    public boolean validarSequenciaAuditoriaConcorrente(Reserva r1, Reserva r2, ValidadorAuditoria validadorAuditoria) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        return false;
+    }
 }

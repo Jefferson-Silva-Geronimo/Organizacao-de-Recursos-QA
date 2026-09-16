@@ -45,6 +45,19 @@ public class ValidadorManutencao {
         }
     }
 
+    public void validarAlteracaoManutencao(Reserva reserva, LocalDateTime novoInicio, LocalDateTime novoFim) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public boolean verificarDisponibilidade(Recurso recurso, LocalDateTime inicio, LocalDateTime fim) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        return false;
+    }
+
+    public void validarPeriodoManutencao(LocalDateTime inicio, LocalDateTime fim) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
     // Classe interna para representar manutenção
     private static class Manutencao {
         private LocalDateTime inicio;

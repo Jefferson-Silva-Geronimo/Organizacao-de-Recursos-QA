@@ -62,4 +62,28 @@ public class ValidadorAprovacao {
 
         // Lógica de rejeição aqui
     }
+
+    public void rejeitarComMotivo(Reserva reserva, Usuario usuario, String motivo) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void aprovarComValidacaoDisponibilidade(Reserva reserva, Usuario usuario, ValidadorManutencao validadorManutencao) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void aprovarConcorrente(Reserva r1, Reserva r2, Usuario responsavel) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void validarRecursoExistente(Reserva reserva) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void aprovarComEscopo(Reserva reserva, Usuario responsavel, Long recursoPermitidoId) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
+
+    public void validarReaprovacao(Reserva reserva) {
+        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+    }
 }

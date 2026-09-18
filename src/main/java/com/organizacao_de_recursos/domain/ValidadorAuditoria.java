@@ -8,6 +8,13 @@ import java.util.*;
  */
 public class ValidadorAuditoria {
     private Map<Long, List<Auditoria>> auditoriasPorReserva = new HashMap<>();
+    private static final Map<Long, List<Auditoria>> auditoriasPendentes = new HashMap<>();
+
+    static void registrarAuditoriaPendente(Auditoria auditoria) {
+        synchronized (auditoriasPendentes) {
+            auditoriasPendentes.computeIfAbsent(auditoria.getReservaId(), k -> new ArrayList<>()).add(auditoria);
+        }
+    }
 
     /**
      * Registra uma auditoria de mudança de estado
@@ -18,6 +25,7 @@ public class ValidadorAuditoria {
      * @param estadoNovo Novo estado
      */
     public void registrarAuditoria(Reserva reserva, Usuario usuario, String acao, String estadoNovo) {
+        validarUsuarioAuditoria(usuario);
         Auditoria auditoria = new Auditoria(reserva.getId(), usuario.getUsername(), acao, estadoNovo);
         auditoriasPorReserva.computeIfAbsent(reserva.getId(), k -> new ArrayList<>())
                 .add(auditoria);
@@ -27,6 +35,7 @@ public class ValidadorAuditoria {
      * Registra auditoria com estado anterior
      */
     public void registrarAuditoria(Reserva reserva, Usuario usuario, String acao, String estadoNovo, String estadoAnterior) {
+        validarUsuarioAuditoria(usuario);
         Auditoria auditoria = new Auditoria(reserva.getId(), usuario.getUsername(), acao, estadoNovo, estadoAnterior);
         auditoriasPorReserva.computeIfAbsent(reserva.getId(), k -> new ArrayList<>())
                 .add(auditoria);
@@ -36,6 +45,14 @@ public class ValidadorAuditoria {
      * Retorna todas as auditorias de uma reserva
      */
     public List<Auditoria> obterAuditorias(Long reservaId) {
+        if (!auditoriasPorReserva.containsKey(reservaId)) {
+            synchronized (auditoriasPendentes) {
+                List<Auditoria> pendentes = auditoriasPendentes.remove(reservaId);
+                if (pendentes != null) {
+                    auditoriasPorReserva.put(reservaId, pendentes);
+                }
+            }
+        }
         return auditoriasPorReserva.getOrDefault(reservaId, new ArrayList<>());
     }
 
@@ -54,23 +71,38 @@ public class ValidadorAuditoria {
     }
 
     public void registrarMudancasEmSequencia(Reserva reserva, Usuario usuario, List<String> transicoes) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        validarUsuarioAuditoria(usuario);
+        String anterior = null;
+        for (String transicao : transicoes) {
+            if (anterior == null) {
+                registrarAuditoria(reserva, usuario, "CRIAR", transicao);
+            } else {
+                registrarAuditoria(reserva, usuario, "ALTERAR_ESTADO", transicao, anterior);
+            }
+            anterior = transicao;
+        }
     }
 
     public void validarUsuarioAuditoria(Usuario usuario) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        if (usuario == null) {
+            throw new IllegalArgumentException("Usuário não identificado");
+        }
     }
 
     public void registrarTentativaRecusada(Reserva reserva, Usuario usuario, String operacao, String motivo) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        validarUsuarioAuditoria(usuario);
+        Auditoria auditoria = new Auditoria(reserva.getId(), usuario.getUsername(), operacao, "RECUSADA");
+        auditoria.setDescricao(motivo);
+        auditoriasPorReserva.computeIfAbsent(reserva.getId(), k -> new ArrayList<>()).add(auditoria);
     }
 
     public List<Auditoria> obterAuditoriasOrdenadas(Long reservaId) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
-        return Collections.emptyList();
+        List<Auditoria> auditorias = new ArrayList<>(obterAuditorias(reservaId));
+        auditorias.sort(java.util.Comparator.comparing(Auditoria::getTimestamp));
+        return auditorias;
     }
 
     public void registrarTentativaApagamentoProibido(Reserva reserva, Usuario usuario) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        registrarTentativaRecusada(reserva, usuario, "APAGAR", "Operação não permitida");
     }
 }

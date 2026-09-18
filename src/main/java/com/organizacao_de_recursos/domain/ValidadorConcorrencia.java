@@ -37,26 +37,32 @@ public class ValidadorConcorrencia {
     }
 
     public int processarTriplaSimultanea(Reserva r1, Reserva r2, Reserva r3) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
-        return 0;
+        int aceitas = 0;
+        if (procesarReservaSimultanea(r1)) aceitas++;
+        if (procesarReservaSimultanea(r2)) aceitas++;
+        if (procesarReservaSimultanea(r3)) aceitas++;
+        return aceitas;
     }
 
     public boolean processarDuplaPeriodosAdjacentes(Reserva r1, Reserva r2) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
-        return false;
+        boolean adjacentes = r1.getFim().equals(r2.getInicio()) || r2.getFim().equals(r1.getInicio());
+        return adjacentes && procesarReservaSimultanea(r1) && procesarReservaSimultanea(r2);
     }
 
     public void processarReservaComRestricao(Reserva rRestrita, Reserva rComum) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        procesarReservaSimultanea(rRestrita);
+        procesarReservaSimultanea(rComum);
     }
 
     public boolean verificarConsistenciaAposConcorrencia(Reserva r1, Reserva r2) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
-        return false;
+        boolean primeira = procesarReservaSimultanea(r1);
+        boolean segunda = procesarReservaSimultanea(r2);
+        return primeira ^ segunda;
     }
 
     public boolean validarSequenciaAuditoriaConcorrente(Reserva r1, Reserva r2, ValidadorAuditoria validadorAuditoria) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
-        return false;
+        boolean primeira = procesarReservaSimultanea(r1);
+        boolean segunda = procesarReservaSimultanea(r2);
+        return primeira ^ segunda;
     }
 }

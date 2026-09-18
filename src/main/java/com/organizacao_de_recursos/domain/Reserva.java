@@ -123,11 +123,21 @@ public class Reserva {
     private List<Recurso> materiais = new ArrayList<>();
 
     public void validarFormatoHora(String inicio, String fim) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        try {
+            java.time.LocalTime.parse(inicio);
+            java.time.LocalTime.parse(fim);
+        } catch (RuntimeException e) {
+            throw new ReservaTemporalException("Formato de hora inválido", e);
+        }
     }
 
     public void alterarHorario(LocalDateTime novoInicio, LocalDateTime novoFim) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        if ("EM_USO".equals(estado)) {
+            throw new ReservaTemporalException("Reserva já iniciada não pode ser alterada");
+        }
+        validarTemporalidade(novoInicio, novoFim);
+        this.inicio = novoInicio;
+        this.fim = novoFim;
     }
 
     public boolean isApprovalRequired() {

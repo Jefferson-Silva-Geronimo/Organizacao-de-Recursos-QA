@@ -14,31 +14,46 @@ public class ValidadorAutorizacao {
     }
 
     public void aprovarSolicitacao(Usuario usuario, Reserva reserva) {
-        // Sem implementação na fase RED
+        validarAcesso(usuario, "APROVAR_SOLICITACAO");
     }
 
     public void gerenciarRecurso(Usuario usuario, Recurso recurso) {
-        // Sem implementação na fase RED
+        validarAcesso(usuario, "GERENCIAR_RECURSOS");
     }
 
     public void gerenciarUsuarios(Usuario usuario) {
-        // Sem implementação na fase RED
+        validarAcesso(usuario, "GERENCIAR_USUARIOS");
     }
 
     public boolean validarToken(String token) {
-        return false;
+        return token != null && token.startsWith("Bearer ") && token.length() > 7;
     }
 
     public void validarAcesso(Usuario usuario, String operacao) {
-        // Sem implementação na fase RED
+        validarUsuarioAtivo(usuario);
+        if (!obterPermissoes(usuario).contains(operacao)) {
+            throw new AcessoNegadoException("Acesso negado");
+        }
     }
 
     public void validarUsuarioAtivo(Usuario usuario) {
-        // Sem implementação na fase RED
+        if (usuario == null || !usuario.isAtivo()) {
+            throw new AcessoNegadoException("Usuário inativo");
+        }
     }
 
     public List<String> obterPermissoes(Usuario usuario) {
-        return Collections.emptyList();
+        validarUsuarioAtivo(usuario);
+        switch (usuario.getPerfil()) {
+            case ADMINISTRADOR:
+                return List.of("GERENCIAR_RECURSOS", "GERENCIAR_USUARIOS", "CONSULTAR_DISPONIBILIDADE");
+            case RESPONSAVEL:
+                return List.of("APROVAR_SOLICITACAO", "CONSULTAR_DISPONIBILIDADE");
+            case SOLICITANTE:
+                return List.of("CONSULTAR_DISPONIBILIDADE");
+            default:
+                return Collections.emptyList();
+        }
     }
 }
 

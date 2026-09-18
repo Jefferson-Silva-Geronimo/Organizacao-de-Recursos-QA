@@ -17,6 +17,7 @@ public class ValidadorManutencao {
      * Registra um período de manutenção para um recurso
      */
     public void registrarManutencao(Recurso recurso, LocalDateTime inicio, LocalDateTime fim) {
+        validarPeriodoManutencao(inicio, fim);
         Long recursoId = recurso.getId();
         manutencoesPorRecurso.computeIfAbsent(recursoId, k -> new ArrayList<>())
                 .add(new Manutencao(inicio, fim));
@@ -39,23 +40,58 @@ public class ValidadorManutencao {
         if (manutencoes != null) {
             for (Manutencao m : manutencoes) {
                 if (m.temSobreposicao(reserva.getInicio(), reserva.getFim())) {
-                    throw new ReservaManutencaoException("Recurso em manutenção");
+                        String mensagem = reserva.getRecurso().getTipo() == Recurso.TipoRecurso.MATERIAL
+                            ? "Material indisponível"
+                            : reservaContidaNaManutencao(m, reserva.getInicio(), reserva.getFim())
+                            ? "Recurso em manutenção"
+                            : "Recurso indisponível no período";
+                    throw new ReservaManutencaoException(mensagem);
                 }
             }
         }
     }
 
     public void validarAlteracaoManutencao(Reserva reserva, LocalDateTime novoInicio, LocalDateTime novoFim) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        if (reserva.getRecurso() == null) {
+            return;
+        }
+        List<Manutencao> manutencoes = manutencoesPorRecurso.get(reserva.getRecurso().getId());
+        if (manutencoes != null) {
+            for (Manutencao manutencao : manutencoes) {
+                if (manutencao.temSobreposicao(novoInicio, novoFim)) {
+                    throw new ReservaManutencaoException("Sala em manutenção neste período");
+                }
+            }
+        }
     }
 
     public boolean verificarDisponibilidade(Recurso recurso, LocalDateTime inicio, LocalDateTime fim) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
-        return false;
+        List<Manutencao> manutencoes = manutencoesPorRecurso.get(recurso.getId());
+        if (manutencoes == null) {
+            return true;
+        }
+        for (Manutencao manutencao : manutencoes) {
+            if (manutencao.temSobreposicao(inicio, fim)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public void validarPeriodoManutencao(LocalDateTime inicio, LocalDateTime fim) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        if (inicio == null || fim == null) {
+            throw new ReservaTemporalException("Período de manutenção obrigatório");
+        }
+        if (fim.isBefore(inicio)) {
+            throw new ReservaTemporalException("Fim anterior ao início");
+        }
+        if (fim.isEqual(inicio)) {
+            throw new ReservaTemporalException("Duração inválida");
+        }
+    }
+
+    private boolean reservaContidaNaManutencao(Manutencao manutencao, LocalDateTime inicio, LocalDateTime fim) {
+        return !inicio.isBefore(manutencao.inicio) && !fim.isAfter(manutencao.fim);
     }
 
     // Classe interna para representar manutenção

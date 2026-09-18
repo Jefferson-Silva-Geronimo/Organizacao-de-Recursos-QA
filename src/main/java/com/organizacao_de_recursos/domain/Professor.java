@@ -44,7 +44,12 @@ public class Professor {
     }
 
     public void validarFormatoAgenda(String inicio, String fim) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        try {
+            java.time.LocalTime.parse(inicio);
+            java.time.LocalTime.parse(fim);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Formato de hora inválido", e);
+        }
     }
 
     // Classe interna para representar agendas

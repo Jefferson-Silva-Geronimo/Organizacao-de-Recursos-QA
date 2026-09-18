@@ -7,5 +7,9 @@ public class ReservaCriacaoException extends RuntimeException {
     public ReservaCriacaoException(String message) {
         super(message);
     }
+
+    public ReservaCriacaoException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }
 

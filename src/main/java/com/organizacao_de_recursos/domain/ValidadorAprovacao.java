@@ -49,7 +49,9 @@ public class ValidadorAprovacao {
             throw new ReservaAprovacaoException("Apenas Responsável pode aprovar");
         }
 
-        // Lógica de aprovação aqui
+        validarRecursoExistente(reserva);
+        validarReaprovacao(reserva);
+        reserva.setEstado("APROVADA");
     }
 
     /**
@@ -60,30 +62,45 @@ public class ValidadorAprovacao {
             throw new ReservaAprovacaoException("Apenas Responsável pode rejeitar");
         }
 
-        // Lógica de rejeição aqui
+        reserva.setEstado("REJEITADA");
     }
 
     public void rejeitarComMotivo(Reserva reserva, Usuario usuario, String motivo) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        rejeitar(reserva, usuario);
     }
 
     public void aprovarComValidacaoDisponibilidade(Reserva reserva, Usuario usuario, ValidadorManutencao validadorManutencao) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        if (reserva.getInicio() == null || reserva.getFim() == null
+                || reserva.getRecurso() == null
+                || !validadorManutencao.verificarDisponibilidade(reserva.getRecurso(), reserva.getInicio(), reserva.getFim())) {
+            throw new ReservaAprovacaoException("Recurso indisponível no período");
+        }
+        aprovar(reserva, usuario);
     }
 
     public void aprovarConcorrente(Reserva r1, Reserva r2, Usuario responsavel) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        if (r1.getRecurso() != null && r1.getRecurso() == r2.getRecurso()) {
+            throw new ReservaAprovacaoException("Apenas uma solicitação pode ser aprovada");
+        }
     }
 
     public void validarRecursoExistente(Reserva reserva) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        if (reserva.getRecurso() == null) {
+            throw new IllegalArgumentException("Recurso não encontrado");
+        }
     }
 
     public void aprovarComEscopo(Reserva reserva, Usuario responsavel, Long recursoPermitidoId) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        validarRecursoExistente(reserva);
+        if (!recursoPermitidoId.equals(reserva.getRecurso().getId())) {
+            throw new ReservaAprovacaoException("Recurso fora de sua responsabilidade");
+        }
+        aprovar(reserva, responsavel);
     }
 
     public void validarReaprovacao(Reserva reserva) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        if ("APROVADA".equals(reserva.getEstado())) {
+            throw new ReservaAprovacaoException("Solicitação já foi aprovada");
+        }
     }
 }

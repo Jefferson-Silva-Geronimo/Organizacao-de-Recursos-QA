@@ -37,13 +37,26 @@ public class ValidadorAgendaProfessor {
         if (reserva.getProfessores() != null) {
             for (Professor prof : reserva.getProfessores()) {
                 if (prof.temConflito(inicio, fim)) {
-                    throw new ReservaAgendaProfessorException("Professor " + prof.getNome() + " indisponível");
+                    throw new ReservaAgendaProfessorException("Professor " + nomeParaMensagem(prof.getNome()) + " indisponível");
                 }
             }
         }
     }
 
+    private String nomeParaMensagem(String nome) {
+        return nome != null && nome.startsWith("Prof ") ? nome.substring(5) : nome;
+    }
+
     public void validarAlteracaoAgenda(Reserva reserva, LocalDateTime novoInicio, LocalDateTime novoFim) {
-        // Assinatura mínima sem regra de negócio (Fase RED TDD)
+        if (reserva.getProfessor() != null && reserva.getProfessor().temConflito(novoInicio, novoFim)) {
+            throw new ReservaAgendaProfessorException("Alteração causaria conflito com agenda");
+        }
+        if (reserva.getProfessores() != null) {
+            for (Professor professor : reserva.getProfessores()) {
+                if (professor.temConflito(novoInicio, novoFim)) {
+                    throw new ReservaAgendaProfessorException("Alteração causaria conflito com agenda");
+                }
+            }
+        }
     }
 }

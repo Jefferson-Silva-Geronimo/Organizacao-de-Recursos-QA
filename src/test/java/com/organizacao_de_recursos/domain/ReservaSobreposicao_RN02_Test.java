@@ -1,11 +1,13 @@
 package com.organizacao_de_recursos.domain;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RN-02: Não Sobreposição do Mesmo Recurso
@@ -20,7 +22,7 @@ import static org.assertj.core.api.Assertions.*;
  * - T-RN02-004: Conflicts - Sobreposição parcial (nova começa dentro)
  * - T-RN02-005: Conflicts - Sobreposição parcial (nova termina dentro)
  * - T-RN02-006: Conflicts - Sobreposição: nova envolve existente
- * - T-RN02-007: Boundary - Reservas adjacentes (fim = início)
+ * - T-RN02-007: Boundary - Reservas adjacentes (fim = início) [BLOQUEADO_POR_LACUNA]
  * - T-RN02-008: Boundary - Limite exato de coincidência
  * - T-RN02-009: Conflicts - Múltiplas existentes, conflita com uma
  * - T-RN02-010: Forbidden State - Alterar existente para criar sobreposição
@@ -141,34 +143,27 @@ class ReservaSobreposicao_RN02_Test {
     }
 
     @Test
+    @Disabled("BLOQUEADO_POR_LACUNA: política de adjacência indefinida (Q-002) - resultado 'Aceita OU Recusada conforme política (PENDENTE)'")
     @DisplayName("T-RN02-007: Boundary - Reservas adjacentes (fim = início)")
     void deveAceitarReservasAdjacentesSemSobreposicao() {
-        // Arrange
-        Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-        Reserva existente = criarReserva(1L, salaA, DIA_08H, DIA_09H);
-        Reserva novaAdjacente = criarReserva(2L, salaA, DIA_09H, DIA_10H);
-        
-        ValidadorSobreposicao validador = new ValidadorSobreposicao();
-        validador.registrarReserva(existente);
-
-        // Act & Assert
-        assertThatNoException()
-                .isThrownBy(() -> validador.validarSobreposicao(novaAdjacente));
+        fail("Caso bloqueado: política de adjacência indefinida no plano (Q-002)");
     }
-
     @Test
     @DisplayName("T-RN02-008: Boundary - Limite exato de coincidência recusada por RN-01")
     void deveRecusarPorRN01AntesDeVerificarSobreposicao() {
-        // Arrange
+        // Arrange - existente 08:00-09:00 na Sala A; nova 09:00-09:00 (erro de entrada)
+        LocalDateTime amanha08h = LocalDateTime.now().plusDays(1).withHour(8).withMinute(0).withSecond(0).withNano(0);
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-        Reserva reservaInvalida = criarReserva(2L, salaA, DIA_09H, DIA_09H);
+        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
+        servico.criarReserva(solicitante, criarReserva(1L, salaA, amanha08h, amanha08h.plusHours(1)));
+        Reserva novaInvalida = criarReserva(2L, salaA, amanha08h.plusHours(1), amanha08h.plusHours(1));
 
-        // Act & Assert
-        assertThatThrownBy(() -> reservaInvalida.validarTemporalidade(DIA_09H, DIA_09H))
+        // Act & Assert - a recusa vem da RN-01, e não de conflito de sobreposição
+        assertThatThrownBy(() -> servico.criarReserva(solicitante, novaInvalida))
                 .isInstanceOf(ReservaTemporalException.class)
                 .hasMessageContaining("Duração inválida");
     }
-
     @Test
     @DisplayName("T-RN02-009: Conflicts - Múltiplas existentes, conflita com uma")
     void deveRecusarQuandoConflitaComUmaDasMultiplasExistentes() {
@@ -177,17 +172,16 @@ class ReservaSobreposicao_RN02_Test {
         Reserva r1 = criarReserva(1L, salaA, DIA_08H, DIA_09H);
         Reserva r2 = criarReserva(2L, salaA, DIA_10H, DIA_11H);
         Reserva nova = criarReserva(3L, salaA, DIA_08H30, DIA_08H45);
-        
+
         ValidadorSobreposicao validador = new ValidadorSobreposicao();
         validador.registrarReserva(r1);
         validador.registrarReserva(r2);
 
-        // Act & Assert
+        // Act & Assert - a mensagem identifica a reserva conflitante (08:00-09:00)
         assertThatThrownBy(() -> validador.validarSobreposicao(nova))
                 .isInstanceOf(ReservaSobreposicaoException.class)
-                .hasMessageContaining("Conflito de horário");
+                .hasMessageContaining("Conflita com reserva 08:00-09:00");
     }
-
     @Test
     @DisplayName("T-RN02-010: Forbidden State - Alterar existente para criar sobreposição")
     void deveRecusarAlteracaoQueCausariaSobreposicao() {

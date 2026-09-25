@@ -1,20 +1,29 @@
 package com.organizacao_de_recursos.domain;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RF-10: Criação de Reserva
  * Identifier: RF-10 | docs/prd.md:7.10 | E4: Reservas e Agenda
- * 
- * O sistema deve permitir ao Solicitante criar suas próprias reservas 
+ *
+ * O sistema deve permitir ao Solicitante criar suas próprias reservas
  * respeitando disponibilidade, conflitos, manutenção e restrições.
- * 
+ *
  * Casos de teste mapeados:
  * - T-RF10-001: Happy Path - Criar reserva simples (sala comum)
  * - T-RF10-002: Happy Path - Criar com múltiplos recursos (sala + material)
@@ -25,34 +34,44 @@ import static org.assertj.core.api.Assertions.*;
  * - T-RF10-007: Conflicts - Sobreposição em professor
  * - T-RF10-008: Conflicts - Recurso em manutenção
  * - T-RF10-009: Conflicts - Dupla simultânea (RN-04)
- * - T-RF10-010: Boundary - Período RN-01 válido (fim > início)
+ * - T-RF10-010: Boundary - Período RN-01 válido (fim > início) [BLOQUEADO_POR_LACUNA]
  * - T-RF10-011: Invalid Input - Fim anterior ao início (RN-01)
  * - T-RF10-012: Invalid Input - Recurso inexistente
  * - T-RF10-013: Forbidden State - Solicitante cria para outro Solicitante
  * - T-RF10-014: Happy Path - Auditoria criada (RN-09)
  * - T-RF10-015: Happy Path - Persistência em banco
+ *
+ * As datas são sempre relativas ao instante atual (futuro), para que a
+ * validação de "data no passado" da RN-01 não interfira nos demais cenários.
  */
 @DisplayName("RF-10: Criação de Reserva")
 class ReservaCriacao_RF10_Test {
 
-    private static final LocalDateTime DIA_08H = LocalDateTime.of(2026, 9, 25, 8, 0);
-    private static final LocalDateTime DIA_09H = LocalDateTime.of(2026, 9, 25, 9, 0);
-    private static final LocalDateTime DIA_08H30 = LocalDateTime.of(2026, 9, 25, 8, 30);
+    private static final LocalDateTime DIA_08H = LocalDateTime.now().plusDays(2)
+            .withHour(8).withMinute(0).withSecond(0).withNano(0);
+    private static final LocalDateTime DIA_08H30 = DIA_08H.plusMinutes(30);
+    private static final LocalDateTime DIA_09H = DIA_08H.plusHours(1);
+
+    private Usuario solicitante(long id, String username) {
+        return new Usuario(id, username, Usuario.Perfil.SOLICITANTE);
+    }
+
+    private Reserva reservaEm(Recurso recurso, LocalDateTime inicio, LocalDateTime fim) {
+        Reserva reserva = new Reserva();
+        reserva.setRecurso(recurso);
+        reserva.setInicio(inicio);
+        reserva.setFim(fim);
+        return reserva;
+    }
 
     @Test
     @DisplayName("T-RF10-001: Happy Path - Criar reserva simples (sala comum)")
     void deveCriarReservaSimplesEmSalaComum() {
         // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        Usuario solicitante = solicitante(1L, "solicitante1");
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
         salaA.setRestrito(false);
-
-        Reserva reserva = new Reserva();
-        reserva.setRecurso(salaA);
-        reserva.setInicio(DIA_08H);
-        reserva.setFim(DIA_09H);
-        reserva.setUsuarioSolicitante(solicitante);
-
+        Reserva reserva = reservaEm(salaA, DIA_08H, DIA_09H);
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
 
         // Act
@@ -61,65 +80,58 @@ class ReservaCriacao_RF10_Test {
         // Assert
         assertThat(criada).isNotNull();
         assertThat(criada.getEstado()).isEqualTo("SOLICITADA");
+        assertThat(criada.isApprovalRequired()).isFalse();
     }
 
     @Test
     @DisplayName("T-RF10-002: Happy Path - Criar com múltiplos recursos (sala + material)")
     void deveCriarReservaComMultiplosRecursos() {
         // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        Usuario solicitante = solicitante(1L, "solicitante1");
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
         Recurso material = new Recurso(2L, "Projetor", Recurso.TipoRecurso.MATERIAL);
-
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
 
         // Act
         Reserva criada = servico.criarReservaComRecursos(solicitante, Arrays.asList(salaA, material), DIA_08H, DIA_09H);
 
         // Assert
-        assertThat(criada).isNotNull();
         assertThat(criada.getEstado()).isEqualTo("SOLICITADA");
+        assertThat(criada.getRecurso()).isEqualTo(salaA);
+        assertThat(criada.getMateriais()).containsExactly(material);
     }
 
     @Test
     @DisplayName("T-RF10-003: Happy Path - Criar com professor")
     void deveCriarReservaComProfessor() {
         // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        Usuario solicitante = solicitante(1L, "solicitante1");
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
         Professor professor = new Professor(1L, "Prof Carlos");
-
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
 
         // Act
         Reserva criada = servico.criarReservaComProfessor(solicitante, salaA, professor, DIA_08H, DIA_09H);
 
         // Assert
-        assertThat(criada).isNotNull();
         assertThat(criada.getEstado()).isEqualTo("SOLICITADA");
+        assertThat(criada.getProfessor()).isEqualTo(professor);
     }
 
     @Test
     @DisplayName("T-RF10-004: Happy Path - Recurso restrito aguarda aprovação")
     void deveCriarReservaRestritaAguardandoAprovacao() {
         // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        Usuario solicitante = solicitante(1L, "solicitante1");
         Recurso salaRestrita = new Recurso(3L, "Auditório Nobre", Recurso.TipoRecurso.SALA);
         salaRestrita.setRestrito(true);
-
-        Reserva reserva = new Reserva();
-        reserva.setRecurso(salaRestrita);
-        reserva.setInicio(DIA_08H);
-        reserva.setFim(DIA_09H);
-        reserva.setUsuarioSolicitante(solicitante);
-
+        Reserva reserva = reservaEm(salaRestrita, DIA_08H, DIA_09H);
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
 
         // Act
         Reserva criada = servico.criarReserva(solicitante, reserva);
 
         // Assert
-        assertThat(criada).isNotNull();
         assertThat(criada.getEstado()).isEqualTo("SOLICITADA");
         assertThat(criada.isApprovalRequired()).isTrue();
     }
@@ -127,21 +139,13 @@ class ReservaCriacao_RF10_Test {
     @Test
     @DisplayName("T-RF10-005: Conflicts - Sobreposição em sala deve recusar")
     void deveRecusarCriacaoComSobreposicaoEmSala() {
-        // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        // Arrange - Sala A já reservada 08:00-09:00
+        Usuario solicitante = solicitante(1L, "solicitante1");
+        Usuario outro = solicitante(2L, "solicitante2");
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-        
-        Reserva rExistente = new Reserva();
-        rExistente.setRecurso(salaA);
-        rExistente.setInicio(DIA_08H);
-        rExistente.setFim(DIA_09H);
-
-        Reserva nova = new Reserva();
-        nova.setRecurso(salaA);
-        nova.setInicio(DIA_08H30);
-        nova.setFim(DIA_09H.plusHours(1));
-
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
+        servico.criarReserva(outro, reservaEm(salaA, DIA_08H, DIA_09H));
+        Reserva nova = reservaEm(salaA, DIA_08H30, DIA_09H);
 
         // Act & Assert
         assertThatThrownBy(() -> servico.criarReserva(solicitante, nova))
@@ -152,19 +156,19 @@ class ReservaCriacao_RF10_Test {
     @Test
     @DisplayName("T-RF10-006: Conflicts - Sobreposição em material deve recusar")
     void deveRecusarCriacaoComSobreposicaoEmMaterial() {
-        // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
-        Recurso material = new Recurso(2L, "Projetor", Recurso.TipoRecurso.MATERIAL);
-
-        Reserva nova = new Reserva();
-        nova.setRecurso(material);
-        nova.setInicio(DIA_08H30);
-        nova.setFim(DIA_09H);
-
+        // Arrange - Material X já reservado 08:00-09:00 junto com a Sala A;
+        // a nova reserva usa outra sala (B) e o mesmo Material X às 08:30
+        Usuario solicitante = solicitante(1L, "solicitante1");
+        Usuario outro = solicitante(2L, "solicitante2");
+        Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
+        Recurso salaB = new Recurso(4L, "Sala B", Recurso.TipoRecurso.SALA);
+        Recurso materialX = new Recurso(2L, "Projetor", Recurso.TipoRecurso.MATERIAL);
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
+        servico.criarReservaComRecursos(outro, Arrays.asList(salaA, materialX), DIA_08H, DIA_09H);
 
         // Act & Assert
-        assertThatThrownBy(() -> servico.criarReserva(solicitante, nova))
+        assertThatThrownBy(() -> servico.criarReservaComRecursos(
+                solicitante, Arrays.asList(salaB, materialX), DIA_08H30, DIA_09H))
                 .isInstanceOf(ReservaCriacaoException.class)
                 .hasMessageContaining("conflito em material");
     }
@@ -172,22 +176,15 @@ class ReservaCriacao_RF10_Test {
     @Test
     @DisplayName("T-RF10-007: Conflicts - Sobreposição em professor deve recusar (RN-03)")
     void deveRecusarCriacaoComSobreposicaoEmProfessor() {
-        // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        // Arrange - Prof Y com agenda 08:00-09:00
+        Usuario solicitante = solicitante(1L, "solicitante1");
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-        Professor professor = new Professor(1L, "Prof Carlos");
-        professor.adicionarAgenda(DIA_08H, DIA_09H);
-
-        Reserva nova = new Reserva();
-        nova.setRecurso(salaA);
-        nova.setProfessor(professor);
-        nova.setInicio(DIA_08H30);
-        nova.setFim(DIA_09H);
-
+        Professor professorY = new Professor(1L, "Prof Y");
+        professorY.adicionarAgenda(DIA_08H, DIA_09H);
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
 
         // Act & Assert
-        assertThatThrownBy(() -> servico.criarReserva(solicitante, nova))
+        assertThatThrownBy(() -> servico.criarReservaComProfessor(solicitante, salaA, professorY, DIA_08H30, DIA_09H))
                 .isInstanceOf(ReservaCriacaoException.class)
                 .hasMessageContaining("conflito professor");
     }
@@ -195,16 +192,13 @@ class ReservaCriacao_RF10_Test {
     @Test
     @DisplayName("T-RF10-008: Conflicts - Recurso em manutenção deve recusar (RN-05)")
     void deveRecusarCriacaoEmRecursoEmManutencao() {
-        // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        // Arrange - Sala A em manutenção 08:00-09:00
+        Usuario solicitante = solicitante(1L, "solicitante1");
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-
-        Reserva nova = new Reserva();
-        nova.setRecurso(salaA);
-        nova.setInicio(DIA_08H30);
-        nova.setFim(DIA_09H);
-
-        ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
+        ValidadorManutencao manutencao = new ValidadorManutencao();
+        manutencao.registrarManutencao(salaA, DIA_08H, DIA_09H);
+        ServicoCriacaoReserva servico = new ServicoCriacaoReserva(manutencao);
+        Reserva nova = reservaEm(salaA, DIA_08H30, DIA_09H);
 
         // Act & Assert
         assertThatThrownBy(() -> servico.criarReserva(solicitante, nova))
@@ -214,80 +208,77 @@ class ReservaCriacao_RF10_Test {
 
     @Test
     @DisplayName("T-RF10-009: Conflicts - Dupla simultânea uma aceita uma recusada (RN-04)")
-    void deveGerenciarDuplaSimultaneaNaCriacao() {
-        // Arrange
-        Usuario sol1 = new Usuario(1L, "user1", Usuario.Perfil.SOLICITANTE);
-        Usuario sol2 = new Usuario(2L, "user2", Usuario.Perfil.SOLICITANTE);
+    void deveGerenciarDuplaSimultaneaNaCriacao() throws Exception {
+        // Arrange - 300 rodadas, cada uma com serviço novo e duas requisições disparadas juntas
+        int rodadas = 300;
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        List<String> rodadasInvalidas = new ArrayList<>();
 
-        Reserva r1 = new Reserva();
-        r1.setRecurso(salaA);
-        r1.setInicio(DIA_08H);
-        r1.setFim(DIA_09H);
+        try {
+            for (int rodada = 0; rodada < rodadas; rodada++) {
+                ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
+                CountDownLatch largada = new CountDownLatch(1);
+                Future<String> primeira = executor.submit(() -> tentarCriar(servico, largada, 1L, salaA));
+                Future<String> segunda = executor.submit(() -> tentarCriar(servico, largada, 2L, salaA));
 
-        Reserva r2 = new Reserva();
-        r2.setRecurso(salaA);
-        r2.setInicio(DIA_08H);
-        r2.setFim(DIA_09H);
+                // Act
+                largada.countDown();
+                List<String> resultados = Arrays.asList(primeira.get(10, TimeUnit.SECONDS), segunda.get(10, TimeUnit.SECONDS));
 
-        ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
+                if (!resultados.contains("ACEITA") || !resultados.contains("RECUSADA_POR_CONFLITO")) {
+                    rodadasInvalidas.add("rodada " + rodada + ": " + resultados);
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
 
-        // Act & Assert
-        Reserva res1 = servico.criarReserva(sol1, r1);
-        assertThatThrownBy(() -> servico.criarReserva(sol2, r2))
-                .isInstanceOf(ReservaCriacaoException.class);
+        // Assert - em toda rodada exatamente uma requisição é aceita e a outra recusada por conflito
+        assertThat(rodadasInvalidas).as("rodadas em que não houve exatamente 1 aceita e 1 recusada").isEmpty();
+    }
+
+    private String tentarCriar(ServicoCriacaoReserva servico, CountDownLatch largada, long idUsuario, Recurso sala)
+            throws InterruptedException {
+        largada.await();
+        try {
+            servico.criarReserva(solicitante(idUsuario, "user" + idUsuario), reservaEm(sala, DIA_08H, DIA_09H));
+            return "ACEITA";
+        } catch (ReservaCriacaoException e) {
+            return "RECUSADA_POR_CONFLITO";
+        } catch (RuntimeException e) {
+            return "ERRO_INESPERADO:" + e.getClass().getSimpleName();
+        }
     }
 
     @Test
+    @Disabled("BLOQUEADO_POR_LACUNA: plano não define a duração mínima (§4.3) - resultado 'Aceita OU conforme política (PENDENTE)'")
     @DisplayName("T-RF10-010: Boundary - Período RN-01 válido (fim > início)")
     void deveAceitarCriacaoComPeriodoValidoMinimo() {
-        // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
-        Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-
-        Reserva reserva = new Reserva();
-        reserva.setRecurso(salaA);
-        reserva.setInicio(DIA_08H);
-        reserva.setFim(DIA_08H.plusMinutes(1));
-
-        ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
-
-        // Act
-        Reserva criada = servico.criarReserva(solicitante, reserva);
-
-        // Assert
-        assertThat(criada).isNotNull();
+        fail("Caso bloqueado: duração mínima de reserva indefinida no plano (§4.3)");
     }
 
     @Test
     @DisplayName("T-RF10-011: Invalid Input - Fim anterior ao início deve recusar por RN-01")
     void deveRecusarCriacaoComFimAnteriorAoInicio() {
         // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        Usuario solicitante = solicitante(1L, "solicitante1");
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-
-        Reserva reserva = new Reserva();
-        reserva.setRecurso(salaA);
-        reserva.setInicio(DIA_09H);
-        reserva.setFim(DIA_08H);
-
+        Reserva reserva = reservaEm(salaA, DIA_09H, DIA_08H);
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
 
         // Act & Assert
         assertThatThrownBy(() -> servico.criarReserva(solicitante, reserva))
-                .isInstanceOf(ReservaTemporalException.class);
+                .isInstanceOf(ReservaTemporalException.class)
+                .hasMessageContaining("Fim anterior ao início");
     }
 
     @Test
     @DisplayName("T-RF10-012: Invalid Input - Recurso inexistente deve recusar")
     void deveRecusarCriacaoComRecursoInexistente() {
         // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
-        Reserva reserva = new Reserva();
-        reserva.setRecurso(null);
-        reserva.setInicio(DIA_08H);
-        reserva.setFim(DIA_09H);
-
+        Usuario solicitante = solicitante(1L, "solicitante1");
+        Reserva reserva = reservaEm(null, DIA_08H, DIA_09H);
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
 
         // Act & Assert
@@ -300,16 +291,11 @@ class ReservaCriacao_RF10_Test {
     @DisplayName("T-RF10-013: Forbidden State - Solicitante cria para outro Solicitante")
     void solicitanteNaoDevePoderCriarParaOutro() {
         // Arrange
-        Usuario solicitanteA = new Usuario(1L, "solicitanteA", Usuario.Perfil.SOLICITANTE);
-        Usuario solicitanteB = new Usuario(2L, "solicitanteB", Usuario.Perfil.SOLICITANTE);
+        Usuario solicitanteA = solicitante(1L, "solicitanteA");
+        Usuario solicitanteB = solicitante(2L, "solicitanteB");
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-
-        Reserva reserva = new Reserva();
-        reserva.setRecurso(salaA);
-        reserva.setInicio(DIA_08H);
-        reserva.setFim(DIA_09H);
-        reserva.setUsuarioSolicitante(solicitanteB); // Solicitante A tenta passar B como owner
-
+        Reserva reserva = reservaEm(salaA, DIA_08H, DIA_09H);
+        reserva.setUsuarioSolicitante(solicitanteB); // A tenta criar com owner=B
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
 
         // Act & Assert
@@ -322,15 +308,10 @@ class ReservaCriacao_RF10_Test {
     @DisplayName("T-RF10-014: Happy Path - Auditoria criada na criação (RN-09)")
     void criacaoDeReservaDeveRegistrarAuditoria() {
         // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        Usuario solicitante = solicitante(1L, "solicitante1");
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-
-        Reserva reserva = new Reserva();
+        Reserva reserva = reservaEm(salaA, DIA_08H, DIA_09H);
         reserva.setId(100L);
-        reserva.setRecurso(salaA);
-        reserva.setInicio(DIA_08H);
-        reserva.setFim(DIA_09H);
-
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
         ValidadorAuditoria validadorAuditoria = new ValidadorAuditoria();
 
@@ -338,22 +319,22 @@ class ReservaCriacao_RF10_Test {
         servico.criarReserva(solicitante, reserva);
 
         // Assert
-        assertThat(validadorAuditoria.obterAuditorias(100L)).isNotEmpty();
+        assertThat(validadorAuditoria.obterAuditorias(100L)).hasSize(1);
+        Auditoria auditoria = validadorAuditoria.obterAuditorias(100L).get(0);
+        assertThat(auditoria.getUsuario()).isEqualTo("solicitante1");
+        assertThat(auditoria.getAcao()).isEqualTo("CRIAR");
+        assertThat(auditoria.getEstadoNovo()).isEqualTo("SOLICITADA");
+        assertThat(auditoria.getTimestamp()).isNotNull();
     }
 
     @Test
     @DisplayName("T-RF10-015: Happy Path - Persistência em banco e consulta")
     void deveRecuperarReservaCriadaDoRepositorio() {
         // Arrange
-        Usuario solicitante = new Usuario(1L, "solicitante1", Usuario.Perfil.SOLICITANTE);
+        Usuario solicitante = solicitante(1L, "solicitante1");
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-
-        Reserva reserva = new Reserva();
+        Reserva reserva = reservaEm(salaA, DIA_08H, DIA_09H);
         reserva.setId(200L);
-        reserva.setRecurso(salaA);
-        reserva.setInicio(DIA_08H);
-        reserva.setFim(DIA_09H);
-
         ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
 
         // Act
@@ -363,6 +344,9 @@ class ReservaCriacao_RF10_Test {
         // Assert
         assertThat(encontrada).isNotNull();
         assertThat(encontrada.getId()).isEqualTo(200L);
+        assertThat(encontrada.getRecurso()).isEqualTo(salaA);
+        assertThat(encontrada.getInicio()).isEqualTo(DIA_08H);
+        assertThat(encontrada.getFim()).isEqualTo(DIA_09H);
+        assertThat(encontrada.getEstado()).isEqualTo("SOLICITADA");
     }
 }
-

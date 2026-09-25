@@ -5,7 +5,6 @@ import java.util.List;
 
 /**
  * Validador para RF-01: Autenticação e Autorização por Perfil
- * Assinatura mínima sem lógica de negócio (Fase RED TDD).
  */
 public class ValidadorAutorizacao {
 
@@ -13,8 +12,17 @@ public class ValidadorAutorizacao {
         return Collections.emptyList();
     }
 
+    /**
+     * Aprova a solicitação (somente perfis com a permissão APROVAR_SOLICITACAO): a reserva passa de
+     * SOLICITADA para APROVADA e a mudança de estado gera registro de auditoria (RN-07 e RN-09).
+     */
     public void aprovarSolicitacao(Usuario usuario, Reserva reserva) {
         validarAcesso(usuario, "APROVAR_SOLICITACAO");
+        new ValidadorFluxoEstados().validarTransicao(reserva, "APROVADA");
+        String estadoAnterior = reserva.getEstado();
+        ValidadorAuditoria.registrarAuditoriaPendente(
+                new Auditoria(reserva.getId(), usuario.getUsername(), "APROVAR", "APROVADA", estadoAnterior));
+        reserva.setEstado("APROVADA");
     }
 
     public void gerenciarRecurso(Usuario usuario, Recurso recurso) {

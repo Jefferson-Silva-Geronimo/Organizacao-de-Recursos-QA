@@ -23,7 +23,7 @@ public class ValidadorAgendaProfessor {
         Professor professor = reserva.getProfessor();
         
         if (professor == null && (reserva.getProfessores() == null || reserva.getProfessores().isEmpty())) {
-            throw new IllegalArgumentException("Professor não identificado");
+            throw new IllegalArgumentException("Professor não encontrado");
         }
 
         // Validar professor único

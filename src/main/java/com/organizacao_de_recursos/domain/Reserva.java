@@ -119,6 +119,7 @@ public class Reserva {
     }
 
     private boolean approvalRequired;
+    private String motivoRejeicao;
     private Usuario usuarioSolicitante;
     private List<Recurso> materiais = new ArrayList<>();
 
@@ -146,6 +147,14 @@ public class Reserva {
 
     public void setApprovalRequired(boolean approvalRequired) {
         this.approvalRequired = approvalRequired;
+    }
+
+    public String getMotivoRejeicao() {
+        return motivoRejeicao;
+    }
+
+    public void setMotivoRejeicao(String motivoRejeicao) {
+        this.motivoRejeicao = motivoRejeicao;
     }
 
     public Usuario getUsuarioSolicitante() {

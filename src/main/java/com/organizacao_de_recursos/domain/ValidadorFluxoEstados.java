@@ -64,6 +64,11 @@ public class ValidadorFluxoEstados {
     public void validarTransicao(Reserva reserva, String novoEstado) {
         String estadoAtual = reserva.getEstado();
 
+        // O novo estado é obrigatório (null ou vazio)
+        if (novoEstado == null || novoEstado.isBlank()) {
+            throw new ReservaFluxoEstadosException("Estado é obrigatório");
+        }
+
         // Verificar se estado é válido
         if (!ESTADOS_VALIDOS.contains(novoEstado)) {
             throw new ReservaFluxoEstadosException("Estado inválido");

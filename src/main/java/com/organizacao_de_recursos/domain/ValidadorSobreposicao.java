@@ -1,20 +1,23 @@
 package com.organizacao_de_recursos.domain;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Validador para RN-02: Não Sobreposição do Mesmo Recurso
- * Reservas do mesmo recurso não podem se sobrepor.
+ * Reservas do mesmo recurso (sala ou material anexado à reserva) não podem se sobrepor.
  */
 public class ValidadorSobreposicao {
-    private List<Reserva> reservasRegistradas = new ArrayList<>();
+    private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
+
+    private final List<Reserva> reservasRegistradas = new ArrayList<>();
 
     /**
      * Registra uma reserva como existente
      */
-    public void registrarReserva(Reserva reserva) {
+    public synchronized void registrarReserva(Reserva reserva) {
         reservasRegistradas.add(reserva);
     }
 
@@ -24,17 +27,17 @@ public class ValidadorSobreposicao {
      * @param novaReserva Reserva a validar
      * @throws ReservaSobreposicaoException se houver sobreposição
      */
-    public void validarSobreposicao(Reserva novaReserva) {
+    public synchronized void validarSobreposicao(Reserva novaReserva) {
         for (Reserva existente : reservasRegistradas) {
-            // Verifica se são do mesmo recurso
-            if (mesmoRecurso(existente, novaReserva)) {
-                // Verifica sobreposição temporal
-                if (temSobreposicao(existente, novaReserva)) {
-                    String mensagem = mesmoPeriodo(existente, novaReserva)
-                            ? "Recurso indisponível no período"
-                            : "Conflito de horário";
-                    throw new ReservaSobreposicaoException(mensagem);
-                }
+            Recurso emConflito = recursoEmComum(existente, novaReserva);
+            // Verifica se há recurso em comum e sobreposição temporal
+            if (emConflito != null && temSobreposicao(existente, novaReserva)) {
+                String mensagem = mesmoPeriodo(existente, novaReserva)
+                        ? "Recurso indisponível no período"
+                        : "Conflito de horário";
+                String periodoExistente = HORA.format(existente.getInicio()) + "-" + HORA.format(existente.getFim());
+                throw new ReservaSobreposicaoException(
+                        mensagem + ". Conflita com reserva " + periodoExistente, emConflito);
             }
         }
     }
@@ -48,22 +51,37 @@ public class ValidadorSobreposicao {
         return r1.getInicio().isBefore(r2.getFim()) && r1.getFim().isAfter(r2.getInicio());
     }
 
-    public void validarAlteracaoReserva(Reserva reserva, LocalDateTime novoInicio, LocalDateTime novoFim) {
+    public synchronized void validarAlteracaoReserva(Reserva reserva, LocalDateTime novoInicio, LocalDateTime novoFim) {
         for (Reserva existente : reservasRegistradas) {
             if (existente == reserva || (existente.getId() != null && existente.getId().equals(reserva.getId()))) {
                 continue;
             }
-            if (mesmoRecurso(existente, reserva)
+            if (recursoEmComum(existente, reserva) != null
                     && temSobreposicao(existente, novoInicio, novoFim)) {
                 throw new ReservaSobreposicaoException("Alteração causaria sobreposição");
             }
         }
     }
 
-    private boolean mesmoRecurso(Reserva primeira, Reserva segunda) {
-        return primeira.getRecurso() != null && segunda.getRecurso() != null
-                && primeira.getRecurso().getId() != null
-                && primeira.getRecurso().getId().equals(segunda.getRecurso().getId());
+    /** Primeiro recurso (sala ou material) que as duas reservas têm em comum, ou null. */
+    private Recurso recursoEmComum(Reserva primeira, Reserva segunda) {
+        for (Recurso recursoPrimeira : recursosDe(primeira)) {
+            for (Recurso recursoSegunda : recursosDe(segunda)) {
+                if (recursoPrimeira.getId() != null && recursoPrimeira.getId().equals(recursoSegunda.getId())) {
+                    return recursoSegunda;
+                }
+            }
+        }
+        return null;
+    }
+
+    private List<Recurso> recursosDe(Reserva reserva) {
+        List<Recurso> recursos = new ArrayList<>();
+        if (reserva.getRecurso() != null) {
+            recursos.add(reserva.getRecurso());
+        }
+        recursos.addAll(reserva.getMateriais());
+        return recursos;
     }
 
     private boolean mesmoPeriodo(Reserva primeira, Reserva segunda) {

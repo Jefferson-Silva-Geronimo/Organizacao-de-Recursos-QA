@@ -103,6 +103,6 @@ public class ValidadorAuditoria {
     }
 
     public void registrarTentativaApagamentoProibido(Reserva reserva, Usuario usuario) {
-        registrarTentativaRecusada(reserva, usuario, "APAGAR", "Operação não permitida");
+        registrarTentativaRecusada(reserva, usuario, "APAGAR", "REJEITADO - Operação não permitida");
     }
 }

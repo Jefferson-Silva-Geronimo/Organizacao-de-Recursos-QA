@@ -1,11 +1,13 @@
 package com.organizacao_de_recursos.domain;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RN-05: Indisponibilidade por Manutenção
@@ -22,7 +24,7 @@ import static org.assertj.core.api.Assertions.*;
  * - T-RN05-007: Forbidden State - Alterar reserva introduzindo manutenção
  * - T-RN05-008: Conflicts - Pesquisa de disponibilidade exclui manutenção
  * - T-RN05-009: Invalid Input - Bloqueio/manutenção com período inválido
- * - T-RN05-010: Boundary - Manutenção adjacente à reserva
+ * - T-RN05-010: Boundary - Manutenção adjacente à reserva [BLOQUEADO_POR_LACUNA]
  */
 @DisplayName("RN-05: Indisponibilidade por Manutenção")
 class ReservaManutencao_RN05_Test {
@@ -108,7 +110,7 @@ class ReservaManutencao_RN05_Test {
         // Act & Assert
         assertThatThrownBy(() -> validador.validarManutencao(reserva))
                 .isInstanceOf(ReservaManutencaoException.class)
-                .hasMessageContaining("Recurso indisponível");
+                .hasMessageContaining("Recurso indisponível no período");
     }
 
     @Test
@@ -152,22 +154,21 @@ class ReservaManutencao_RN05_Test {
     @Test
     @DisplayName("T-RN05-007: Forbidden State - Alterar reserva introduzindo manutenção")
     void deveRecusarAlterarReservaIntroduzindoManutencao() {
-        // Arrange
+        // Arrange - reserva existente na Sala A Seg 10:00-11:00; o Admin registra manutenção Seg 10:00-11:00
         Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
         ValidadorManutencao validador = new ValidadorManutencao();
-        validador.registrarManutencao(salaA, SEG_10H, SEG_10H.plusHours(1));
-        
         Reserva reserva = new Reserva();
         reserva.setRecurso(salaA);
-        reserva.setInicio(SEG_08H);
-        reserva.setFim(SEG_09H);
+        reserva.setInicio(SEG_10H);
+        reserva.setFim(SEG_10H.plusHours(1));
+        validador.registrarManutencao(salaA, SEG_10H, SEG_10H.plusHours(1));
 
-        // Act & Assert - Alterar para o período de manutenção
-        assertThatThrownBy(() -> validador.validarAlteracaoManutencao(reserva, SEG_10H, SEG_10H.plusHours(1)))
+        // Act & Assert - alteração que mantém a reserva dentro do período de manutenção
+        assertThatThrownBy(() -> validador.validarAlteracaoManutencao(
+                reserva, SEG_10H.plusMinutes(30), SEG_10H.plusMinutes(90)))
                 .isInstanceOf(ReservaManutencaoException.class)
                 .hasMessageContaining("Sala em manutenção neste período");
     }
-
     @Test
     @DisplayName("T-RN05-008: Conflicts - Pesquisa de disponibilidade exclui manutenção")
     void pesquisaDeDisponibilidadeDeveExcluirRecursoEmManutencao() {
@@ -198,20 +199,9 @@ class ReservaManutencao_RN05_Test {
     }
 
     @Test
+    @Disabled("BLOQUEADO_POR_LACUNA: política de adjacência indefinida (Q-002) - resultado 'Aceita OU Recusada conforme política de adjacência (PENDENTE)'")
     @DisplayName("T-RN05-010: Boundary - Manutenção adjacente à reserva")
     void deveAceitarManutencaoAdjacenteAReserva() {
-        // Arrange
-        Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
-        ValidadorManutencao validador = new ValidadorManutencao();
-        validador.registrarManutencao(salaA, SEG_09H, SEG_10H);
-        
-        Reserva reserva = new Reserva();
-        reserva.setRecurso(salaA);
-        reserva.setInicio(SEG_08H);
-        reserva.setFim(SEG_09H);
-
-        // Act & Assert
-        assertThatNoException()
-                .isThrownBy(() -> validador.validarManutencao(reserva));
+        fail("Caso bloqueado: política de adjacência indefinida no plano (Q-002)");
     }
 }

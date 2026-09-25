@@ -1,11 +1,13 @@
 package com.organizacao_de_recursos.domain;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RN-01: Ordem Temporal da Reserva
@@ -16,7 +18,7 @@ import static org.assertj.core.api.Assertions.*;
  * Casos de teste mapeados:
  * - T-RN01-001: Happy Path - Reserva com intervalo válido
  * - T-RN01-002: Happy Path - Intervalo longo
- * - T-RN01-003: Boundary - Intervalo mínimo (1 minuto)
+ * - T-RN01-003: Boundary - Intervalo mínimo (1 minuto) [BLOQUEADO_POR_LACUNA]
  * - T-RN01-004: Boundary - Intervalo zero (início = fim)
  * - T-RN01-005: Invalid Input - Fim anterior ao início
  * - T-RN01-006: Invalid Input - Data passada
@@ -61,16 +63,10 @@ class ReservaTemporal_RN01_Test {
     }
 
     @Test
+    @Disabled("BLOQUEADO_POR_LACUNA: plano não define a duração mínima (§4.3) - resultado 'Reserva aceita ou recusada conforme política (PENDENTE)'")
     @DisplayName("T-RN01-003: Boundary - Intervalo mínimo (1 minuto)")
     void deveAceitarIntervaloMinimo() {
-        // Arrange
-        LocalDateTime inicio = FUTURO_08H;
-        LocalDateTime fim = FUTURO_08H.plusMinutes(1);
-        Reserva reserva = new Reserva();
-
-        // Act & Assert
-        assertThatNoException()
-                .isThrownBy(() -> reserva.validarTemporalidade(inicio, fim));
+        fail("Caso bloqueado: duração mínima de reserva indefinida no plano (§4.3)");
     }
 
     @Test

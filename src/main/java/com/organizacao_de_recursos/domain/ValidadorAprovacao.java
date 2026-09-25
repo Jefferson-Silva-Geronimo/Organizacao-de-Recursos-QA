@@ -1,10 +1,16 @@
 package com.organizacao_de_recursos.domain;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Validador para RN-06: Aprovação de Recursos Restritos
  * Recursos restritos exigem aprovação; somente Responsável pode aprová-los.
  */
 public class ValidadorAprovacao {
+
+    // Reservas aprovadas por este validador; base para impedir aprovar duas reservas conflitantes (RN-02/RN-04)
+    private final List<Reserva> aprovadas = new ArrayList<>();
 
     /**
      * Valida se a reserva requer aprovação
@@ -44,14 +50,42 @@ public class ValidadorAprovacao {
      * @param usuario Usuário que está aprovando
      * @throws ReservaAprovacaoException se usuário não é Responsável
      */
-    public void aprovar(Reserva reserva, Usuario usuario) {
+    public synchronized void aprovar(Reserva reserva, Usuario usuario) {
         if (usuario.getPerfil() != Usuario.Perfil.RESPONSAVEL) {
-            throw new ReservaAprovacaoException("Apenas Responsável pode aprovar");
+            throw new ReservaAprovacaoException("Acesso negado. Apenas Responsável pode aprovar");
         }
 
         validarRecursoExistente(reserva);
         validarReaprovacao(reserva);
+        validarSemConflitoComAprovadas(reserva);
         reserva.setEstado("APROVADA");
+        aprovadas.add(reserva);
+    }
+
+    /**
+     * Duas reservas do mesmo recurso e período sobreposto não podem ficar aprovadas ao mesmo tempo:
+     * a segunda aprovação é recusada (RN-02 e RN-04).
+     */
+    private void validarSemConflitoComAprovadas(Reserva reserva) {
+        if (reserva.getInicio() == null || reserva.getFim() == null) {
+            return;
+        }
+        for (Reserva aprovada : aprovadas) {
+            if (aprovada != reserva
+                    && mesmoRecurso(aprovada.getRecurso(), reserva.getRecurso())
+                    && aprovada.getInicio().isBefore(reserva.getFim())
+                    && aprovada.getFim().isAfter(reserva.getInicio())) {
+                throw new ReservaAprovacaoException("Recurso indisponível no período: já existe reserva aprovada");
+            }
+        }
+    }
+
+    private boolean mesmoRecurso(Recurso primeiro, Recurso segundo) {
+        if (primeiro == segundo) {
+            return true;
+        }
+        return primeiro != null && segundo != null
+                && primeiro.getId() != null && primeiro.getId().equals(segundo.getId());
     }
 
     /**
@@ -67,6 +101,7 @@ public class ValidadorAprovacao {
 
     public void rejeitarComMotivo(Reserva reserva, Usuario usuario, String motivo) {
         rejeitar(reserva, usuario);
+        reserva.setMotivoRejeicao(motivo);
     }
 
     public void aprovarComValidacaoDisponibilidade(Reserva reserva, Usuario usuario, ValidadorManutencao validadorManutencao) {

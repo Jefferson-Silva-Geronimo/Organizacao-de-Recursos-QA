@@ -54,9 +54,9 @@ public class ValidadorAutorizacao {
         validarUsuarioAtivo(usuario);
         switch (usuario.getPerfil()) {
             case ADMINISTRADOR:
-                return List.of("GERENCIAR_RECURSOS", "GERENCIAR_USUARIOS", "CONSULTAR_DISPONIBILIDADE");
+                return List.of("GERENCIAR_RECURSOS", "GERENCIAR_USUARIOS", "CONSULTAR_RELATORIOS", "CONSULTAR_DISPONIBILIDADE");
             case RESPONSAVEL:
-                return List.of("APROVAR_SOLICITACAO", "CONSULTAR_DISPONIBILIDADE");
+                return List.of("APROVAR_SOLICITACAO", "VALIDAR_ALOCACAO_DOCENTE", "REGISTRAR_MOVIMENTACAO_MATERIAIS", "CONSULTAR_DISPONIBILIDADE");
             case SOLICITANTE:
                 return List.of("CONSULTAR_DISPONIBILIDADE");
             default:

@@ -321,9 +321,11 @@ class ReservaRastreabilidade_RN10_Test {
     private static Map<String, LinhaRastreio> lerRastreioDoPlano(String plano) {
         int inicio = plano.indexOf("\n## 9.");
         assertThat(inicio).as("seção 9 (matriz T-RFnn) existe no plano").isGreaterThanOrEqualTo(0);
+        int fimDaSecao = plano.indexOf("\n## 10.", inicio);
+        String secaoNove = plano.substring(inicio, fimDaSecao < 0 ? plano.length() : fimDaSecao);
         Map<String, LinhaRastreio> linhas = new LinkedHashMap<>();
         Pattern inicioDeLinha = Pattern.compile("^\\| RF-\\d{2} \\| \\*\\*(T-RF\\d{2}-\\d{3})\\*\\* \\|");
-        for (String linha : plano.substring(inicio).split("\\R")) {
+        for (String linha : secaoNove.split("\\R")) {
             Matcher caso = inicioDeLinha.matcher(linha);
             if (!caso.find()) {
                 continue;

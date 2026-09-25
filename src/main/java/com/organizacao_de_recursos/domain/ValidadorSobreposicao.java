@@ -42,6 +42,16 @@ public class ValidadorSobreposicao {
         }
     }
 
+    /** Informa se a reserva conflita com alguma existente (sala ou material em comum, período sobreposto). */
+    public synchronized boolean existeConflito(Reserva reserva) {
+        for (Reserva existente : reservasRegistradas) {
+            if (recursoEmComum(existente, reserva) != null && temSobreposicao(existente, reserva)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Verifica se duas reservas tem sobreposição temporal
      * Dois períodos se sobrepõem se:

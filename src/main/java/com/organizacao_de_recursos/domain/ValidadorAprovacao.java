@@ -58,6 +58,7 @@ public class ValidadorAprovacao {
         validarRecursoExistente(reserva);
         validarReaprovacao(reserva);
         validarSemConflitoComAprovadas(reserva);
+        registrarMudancaDeEstado(reserva, usuario, "APROVAR", "APROVADA");
         reserva.setEstado("APROVADA");
         aprovadas.add(reserva);
     }
@@ -96,7 +97,14 @@ public class ValidadorAprovacao {
             throw new ReservaAprovacaoException("Apenas Responsável pode rejeitar");
         }
 
+        registrarMudancaDeEstado(reserva, usuario, "REJEITAR", "REJEITADA");
         reserva.setEstado("REJEITADA");
+    }
+
+    /** Toda mudança de estado gera registro de auditoria (RN-09), gravado antes da mudança (ADR-004). */
+    private void registrarMudancaDeEstado(Reserva reserva, Usuario usuario, String acao, String estadoNovo) {
+        ValidadorAuditoria.registrarAuditoriaPendente(
+                new Auditoria(reserva.getId(), usuario.getUsername(), acao, estadoNovo, reserva.getEstado()));
     }
 
     public void rejeitarComMotivo(Reserva reserva, Usuario usuario, String motivo) {

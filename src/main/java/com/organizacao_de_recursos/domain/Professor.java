@@ -30,6 +30,38 @@ public class Professor {
         return false;
     }
 
+    /**
+     * Conflito com a agenda desconsiderando a primeira entrada igual ao período informado
+     * (usado quando o próprio período da reserva já está na agenda do professor).
+     */
+    public boolean temConflitoIgnorando(LocalDateTime inicio, LocalDateTime fim,
+                                        LocalDateTime inicioIgnorado, LocalDateTime fimIgnorado) {
+        boolean ignorou = false;
+        for (AgendaProfessor ag : agenda) {
+            if (!ignorou && ag.getInicio().equals(inicioIgnorado) && ag.getFim().equals(fimIgnorado)) {
+                ignorou = true;
+                continue;
+            }
+            if (ag.temSobreposicao(inicio, fim)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Troca a primeira entrada da agenda igual ao período antigo pelo novo período. */
+    public void substituirAgenda(LocalDateTime inicioAntigo, LocalDateTime fimAntigo,
+                                 LocalDateTime novoInicio, LocalDateTime novoFim) {
+        for (int indice = 0; indice < agenda.size(); indice++) {
+            AgendaProfessor ag = agenda.get(indice);
+            if (ag.getInicio().equals(inicioAntigo) && ag.getFim().equals(fimAntigo)) {
+                agenda.remove(indice);
+                break;
+            }
+        }
+        agenda.add(new AgendaProfessor(novoInicio, novoFim));
+    }
+
     // Getters
     public Long getId() {
         return id;

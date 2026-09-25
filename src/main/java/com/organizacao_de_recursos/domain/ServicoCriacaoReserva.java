@@ -97,6 +97,40 @@ public class ServicoCriacaoReserva {
         return criarReserva(solicitante, reserva);
     }
 
+    /** Informa se o recurso já está reservado em período sobreposto ao informado. */
+    public boolean possuiConflito(Recurso recurso, LocalDateTime inicio, LocalDateTime fim) {
+        Reserva consulta = new Reserva();
+        consulta.setRecurso(recurso);
+        consulta.setInicio(inicio);
+        consulta.setFim(fim);
+        synchronized (secaoCritica) {
+            return validadorSobreposicao.existeConflito(consulta);
+        }
+    }
+
+    /**
+     * Altera o período de uma reserva já criada, revalidando RN-01, sobreposição de sala e material (RN-02)
+     * e agenda do professor (RN-03) na mesma seção crítica em que aplica a alteração (ADR-005).
+     * Reserva iniciada não pode ser alterada.
+     */
+    public void alterarPeriodo(Reserva reserva, LocalDateTime novoInicio, LocalDateTime novoFim) {
+        synchronized (secaoCritica) {
+            reserva.validarTemporalidade(novoInicio, novoFim);
+            validadorSobreposicao.validarAlteracaoReserva(reserva, novoInicio, novoFim);
+            Professor professor = reserva.getProfessor();
+            if (professor != null
+                    && professor.temConflitoIgnorando(novoInicio, novoFim, reserva.getInicio(), reserva.getFim())) {
+                throw new ReservaCriacaoException("conflito professor");
+            }
+            LocalDateTime inicioAntigo = reserva.getInicio();
+            LocalDateTime fimAntigo = reserva.getFim();
+            reserva.alterarHorario(novoInicio, novoFim);
+            if (professor != null) {
+                professor.substituirAgenda(inicioAntigo, fimAntigo, novoInicio, novoFim);
+            }
+        }
+    }
+
     public Reserva buscarPorId(Long id) {
         synchronized (secaoCritica) {
             return reservas.get(id);

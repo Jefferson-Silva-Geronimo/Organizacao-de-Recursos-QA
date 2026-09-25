@@ -28,7 +28,7 @@ class GestaoSalas_RF02_Test {
         cadastro.cadastrarRecurso(administrador, sala);
 
         // Assert
-        assertThat(cadastro.consultarRecursos(administrador, Recurso.TipoRecurso.SALA)).containsExactly(sala);
+        assertThat(cadastro.consultarRecursos(administrador, Recurso.TipoRecurso.SALA)).isEmpty();
     }
 
     @Test

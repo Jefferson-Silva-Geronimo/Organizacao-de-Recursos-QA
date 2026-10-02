@@ -70,6 +70,14 @@ public class ReservaRecursoEntity {
         return recursoId;
     }
 
+    public OffsetDateTime getInicio() {
+        return inicio;
+    }
+
+    public OffsetDateTime getFim() {
+        return fim;
+    }
+
     public boolean isOcupa() {
         return ocupa;
     }

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Salas')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav}"></nav>
+<div class="container">
+    <h1 class="h4 mb-4">Salas</h1>
+    <table class="table table-striped">
+        <thead>
+        <tr>
+            <th>Id</th>
+            <th>Nome</th>
+            <th>Restrita</th>
+            <th>Ativa</th>
+            <th>Responsável</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="sala : ${salas}">
+            <td th:text="${sala.id}"></td>
+            <td th:text="${sala.nome}"></td>
+            <td th:text="${sala.restrito} ? 'Sim' : 'Não'"></td>
+            <td th:text="${sala.ativo} ? 'Sim' : 'Não'"></td>
+            <td th:text="${sala.responsavelId}"></td>
+        </tr>
+        </tbody>
+    </table>
+
+    <h2 class="h5 mt-4">Cadastrar sala</h2>
+    <form th:action="@{/salas}" method="post" class="card card-body" style="max-width: 420px;">
+        <div class="mb-3">
+            <label for="nome" class="form-label">Nome</label>
+            <input type="text" id="nome" name="nome" class="form-control" required/>
+        </div>
+        <div class="mb-3 form-check">
+            <input type="checkbox" id="restrito" name="restrito" class="form-check-input" value="true"/>
+            <label for="restrito" class="form-check-label">Restrita (exige aprovação)</label>
+        </div>
+        <button type="submit" class="btn btn-primary">Cadastrar</button>
+    </form>
+</div>
+</body>
+</html>

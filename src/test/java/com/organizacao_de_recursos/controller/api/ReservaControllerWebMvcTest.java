@@ -5,6 +5,7 @@ import com.organizacao_de_recursos.domain.ReservaAprovacaoException;
 import com.organizacao_de_recursos.domain.Usuario;
 import com.organizacao_de_recursos.domain.estado.EstadoReserva;
 import com.organizacao_de_recursos.model.ReservaEntity;
+import com.organizacao_de_recursos.repository.EventoAuditoriaRepository;
 import com.organizacao_de_recursos.security.AutorizacaoReserva;
 import com.organizacao_de_recursos.security.JwtService;
 import com.organizacao_de_recursos.security.UsuarioDetailsService;
@@ -46,6 +47,8 @@ class ReservaControllerWebMvcTest {
 
     @MockBean
     private ReservaService reservaService;
+    @MockBean
+    private EventoAuditoriaRepository eventoAuditoriaRepository;
     @MockBean(name = "autorizacaoReserva")
     private AutorizacaoReserva autorizacaoReserva;
     @MockBean

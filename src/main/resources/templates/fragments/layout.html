@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:fragment="head(titulo)">
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="${titulo} + ' - Organização de Recursos'">Organização de Recursos</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}"/>
+</head>
+<body>
+<nav th:fragment="nav" class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand" th:href="@{/painel}">Organização de Recursos</a>
+        <div class="navbar-nav">
+            <a class="nav-link text-white" sec:authorize="hasRole('SOLICITANTE')" th:href="@{/reservas/nova}">Nova reserva</a>
+            <a class="nav-link text-white" sec:authorize="hasRole('SOLICITANTE')" th:href="@{/reservas/minhas}">Minhas reservas</a>
+            <a class="nav-link text-white" sec:authorize="hasRole('RESPONSAVEL')" th:href="@{/reservas/aprovacao}">Fila de aprovação</a>
+            <a class="nav-link text-white" sec:authorize="hasRole('ADMINISTRADOR')" th:href="@{/salas}">Salas</a>
+            <a class="nav-link text-white" th:href="@{/swagger-ui.html}">API</a>
+            <form th:action="@{/logout}" method="post" class="d-inline">
+                <button type="submit" class="btn btn-link nav-link text-white">Sair</button>
+            </form>
+        </div>
+    </div>
+</nav>
+</body>
+</html>

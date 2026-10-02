@@ -66,14 +66,25 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Páginas Thymeleaf (Onda 4): sessão + CSRF + form login, reutilizando o mesmo
+     * UsuarioDetailsService/AuthenticationManager da API.
+     */
     @Bean
     @Order(2)
-    public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain webSecurityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health", "/actuator/info",
-                        "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
-                .permitAll()
-                .anyRequest().denyAll());
+                        .requestMatchers("/actuator/health", "/actuator/info",
+                                "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
+                                "/webjars/**", "/css/**", "/login").permitAll()
+                        .anyRequest().authenticated())
+                .formLogin(form -> form
+                        .loginPage("/login")
+                        .defaultSuccessUrl("/painel", true)
+                        .permitAll())
+                .logout(logout -> logout
+                        .logoutSuccessUrl("/login?logout")
+                        .permitAll());
         return http.build();
     }
 }

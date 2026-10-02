@@ -13,13 +13,15 @@ import com.organizacao_de_recursos.model.ReservaRecursoEntity;
 import com.organizacao_de_recursos.model.SalaEntity;
 import com.organizacao_de_recursos.model.TipoRecursoReserva;
 import com.organizacao_de_recursos.model.UsuarioEntity;
+import com.organizacao_de_recursos.notification.ReservaNotificacaoEvent;
 import com.organizacao_de_recursos.repository.BloqueioRepository;
 import com.organizacao_de_recursos.repository.EventoAuditoriaRepository;
 import com.organizacao_de_recursos.repository.ReservaRecursoRepository;
 import com.organizacao_de_recursos.repository.ReservaRepository;
 import com.organizacao_de_recursos.repository.SalaRepository;
 import com.organizacao_de_recursos.repository.UsuarioRepository;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,8 +50,10 @@ public class ReservaService {
     private final SalaRepository salaRepository;
     private final BloqueioRepository bloqueioRepository;
     private final EventoAuditoriaRepository eventoAuditoriaRepository;
+    private final ConflitoEvitadoService conflitoEvitadoService;
     private final MaquinaDeEstados maquinaDeEstados;
     private final Clock clock;
+    private final ApplicationEventPublisher eventos;
 
     public ReservaService(ReservaRepository reservaRepository,
                            ReservaRecursoRepository reservaRecursoRepository,
@@ -57,16 +61,20 @@ public class ReservaService {
                            SalaRepository salaRepository,
                            BloqueioRepository bloqueioRepository,
                            EventoAuditoriaRepository eventoAuditoriaRepository,
+                           ConflitoEvitadoService conflitoEvitadoService,
                            MaquinaDeEstados maquinaDeEstados,
-                           Clock clock) {
+                           Clock clock,
+                           ApplicationEventPublisher eventos) {
         this.reservaRepository = reservaRepository;
         this.reservaRecursoRepository = reservaRecursoRepository;
         this.usuarioRepository = usuarioRepository;
         this.salaRepository = salaRepository;
         this.bloqueioRepository = bloqueioRepository;
         this.eventoAuditoriaRepository = eventoAuditoriaRepository;
+        this.conflitoEvitadoService = conflitoEvitadoService;
         this.maquinaDeEstados = maquinaDeEstados;
         this.clock = clock;
+        this.eventos = eventos;
     }
 
     @Transactional
@@ -92,7 +100,11 @@ public class ReservaService {
         try {
             reservaRecursoRepository.saveAndFlush(
                     new ReservaRecursoEntity(reserva.getId(), TipoRecursoReserva.SALA, salaId, inicio, fim));
-        } catch (DataIntegrityViolationException exclusaoViolada) {
+        } catch (DataAccessException exclusaoVioladaOuDeadlock) {
+            // Sob concorrência pesada, o Postgres pode responder com deadlock (40P01) em vez da
+            // violação da constraint de exclusão (23P01) - ambos significam a mesma coisa aqui:
+            // a reserva não pode ser confirmada porque outra concorrente ganhou o recurso.
+            conflitoEvitadoService.registrar(TipoRecursoReserva.SALA, salaId, solicitanteId);
             throw new ConflitoDeHorarioException("Recurso indisponível no período solicitado");
         }
 
@@ -167,6 +179,7 @@ public class ReservaService {
             recurso.setOcupa(false);
         }
         registrarAuditoria(reservaId, anterior, EstadoReserva.CANCELADA, solicitanteId);
+        eventos.publishEvent(new ReservaNotificacaoEvent(reservaId, "CANCELADA"));
         return reserva;
     }
 
@@ -187,6 +200,7 @@ public class ReservaService {
         reserva.setEstado(EstadoReserva.APROVADA);
         reserva.setAprovadorId(responsavelId);
         registrarAuditoria(reservaId, anterior, EstadoReserva.APROVADA, responsavelId);
+        eventos.publishEvent(new ReservaNotificacaoEvent(reservaId, "APROVADA"));
         return reserva;
     }
 
@@ -210,7 +224,62 @@ public class ReservaService {
             recurso.setOcupa(false);
         }
         registrarAuditoria(reservaId, anterior, EstadoReserva.REJEITADA, responsavelId);
+        eventos.publishEvent(new ReservaNotificacaoEvent(reservaId, "REJEITADA"));
         return reserva;
+    }
+
+    /** Inicia o uso da reserva aprovada (D3); RESPONSAVEL (no escopo) ou ADMINISTRADOR. */
+    @Transactional
+    public ReservaEntity iniciar(Long reservaId, Long atorId) {
+        ReservaEntity reserva = buscarPorId(reservaId);
+        verificarPodeOperarUso(reserva, atorId);
+        EstadoReserva anterior = reserva.getEstado();
+        maquinaDeEstados.validarTransicao(anterior, EstadoReserva.EM_USO);
+        reserva.setEstado(EstadoReserva.EM_USO);
+        registrarAuditoria(reservaId, anterior, EstadoReserva.EM_USO, atorId);
+        return reserva;
+    }
+
+    /** Conclui a reserva em uso; libera o recurso (D3). */
+    @Transactional
+    public ReservaEntity concluir(Long reservaId, Long atorId) {
+        ReservaEntity reserva = buscarPorId(reservaId);
+        verificarPodeOperarUso(reserva, atorId);
+        EstadoReserva anterior = reserva.getEstado();
+        maquinaDeEstados.validarTransicao(anterior, EstadoReserva.CONCLUIDA);
+        reserva.setEstado(EstadoReserva.CONCLUIDA);
+        for (ReservaRecursoEntity recurso : reservaRecursoRepository.findByReservaId(reservaId)) {
+            recurso.setOcupa(false);
+        }
+        registrarAuditoria(reservaId, anterior, EstadoReserva.CONCLUIDA, atorId);
+        return reserva;
+    }
+
+    /** Marca não comparecimento a partir de APROVADA (não existe transição direta de SOLICITADA, RN-07). */
+    @Transactional
+    public ReservaEntity marcarNaoCompareceu(Long reservaId, Long atorId) {
+        ReservaEntity reserva = buscarPorId(reservaId);
+        verificarPodeOperarUso(reserva, atorId);
+        EstadoReserva anterior = reserva.getEstado();
+        maquinaDeEstados.validarTransicao(anterior, EstadoReserva.NAO_COMPARECEU);
+        reserva.setEstado(EstadoReserva.NAO_COMPARECEU);
+        for (ReservaRecursoEntity recurso : reservaRecursoRepository.findByReservaId(reservaId)) {
+            recurso.setOcupa(false);
+        }
+        registrarAuditoria(reservaId, anterior, EstadoReserva.NAO_COMPARECEU, atorId);
+        return reserva;
+    }
+
+    private void verificarPodeOperarUso(ReservaEntity reserva, Long atorId) {
+        UsuarioEntity ator = usuarioRepository.findById(atorId)
+                .orElseThrow(() -> new AcessoNegadoException("Acesso negado"));
+        if (ator.getPerfil() == Usuario.Perfil.ADMINISTRADOR) {
+            return;
+        }
+        if (ator.getPerfil() == Usuario.Perfil.RESPONSAVEL && escopoDoResponsavel(reserva, atorId)) {
+            return;
+        }
+        throw new AcessoNegadoException("Acesso negado");
     }
 
     /** Escopo do Responsável (D6): só responde pelas salas que lhe foram atribuídas. */

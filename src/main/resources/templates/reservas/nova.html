@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Nova Reserva')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav}"></nav>
+<div class="container" style="max-width: 560px;">
+    <h1 class="h4 mb-4">Nova reserva</h1>
+    <div class="alert alert-danger" th:if="${erro}" th:text="${erro}"></div>
+    <form th:action="@{/reservas/nova}" method="post" class="card card-body">
+        <div class="mb-3">
+            <label for="salaId" class="form-label">Sala</label>
+            <select id="salaId" name="salaId" class="form-select" required>
+                <option th:each="sala : ${salas}" th:value="${sala.id}"
+                        th:text="${sala.nome} + (${sala.restrito} ? ' (restrita)' : '')">Sala</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="inicio" class="form-label">Início</label>
+            <input type="datetime-local" id="inicio" name="inicio" class="form-control" required/>
+        </div>
+        <div class="mb-3">
+            <label for="fim" class="form-label">Fim</label>
+            <input type="datetime-local" id="fim" name="fim" class="form-control" required/>
+        </div>
+        <button type="submit" class="btn btn-primary">Reservar</button>
+    </form>
+</div>
+</body>
+</html>

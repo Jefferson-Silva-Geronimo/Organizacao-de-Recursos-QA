@@ -42,3 +42,26 @@ jobs:
             target/failsafe-reports/**
           if-no-files-found: ignore
           retention-days: 5
+
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/**
+          if-no-files-found: ignore
+          retention-days: 5
+
+      # SonarCloud (Onda 5): preparado, mas inativo até a equipe criar o projeto em
+      # https://sonarcloud.io e cadastrar o secret SONAR_TOKEN no repositório (Settings > Secrets
+      # and variables > Actions). Sem o secret, este passo é pulado silenciosamente - não bloqueia
+      # o CI. Depois de cadastrado, ajustar organization/projectKey abaixo.
+      - name: SonarCloud Scan
+        if: ${{ env.SONAR_TOKEN != '' }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Dsonar.projectKey=organizacao-de-recursos-qa
+          -Dsonar.organization=TROCAR-PELA-ORGANIZACAO-SONARCLOUD

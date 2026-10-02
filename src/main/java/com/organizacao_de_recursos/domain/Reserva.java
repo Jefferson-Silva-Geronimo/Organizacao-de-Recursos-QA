@@ -1,8 +1,10 @@
 package com.organizacao_de_recursos.domain;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Classe de domínio representando uma Reserva de Recurso
@@ -51,7 +53,14 @@ public class Reserva {
         if (fim.isEqual(inicio)) {
             throw new ReservaTemporalException("Duração inválida");
         }
+
+        // Duração mínima de 15 minutos (D7)
+        if (Duration.between(inicio, fim).compareTo(DURACAO_MINIMA) < 0) {
+            throw new ReservaTemporalException("Duração mínima de 15 minutos");
+        }
     }
+
+    private static final Duration DURACAO_MINIMA = Duration.ofMinutes(15);
 
     // Getters e Setters
     public Long getId() {
@@ -132,9 +141,15 @@ public class Reserva {
         }
     }
 
+    private static final Set<String> ESTADOS_TERMINAIS_SEM_ALTERACAO =
+            Set.of("CONCLUIDA", "CANCELADA", "REJEITADA", "NAO_COMPARECEU");
+
     public void alterarHorario(LocalDateTime novoInicio, LocalDateTime novoFim) {
         if ("EM_USO".equals(estado)) {
             throw new ReservaTemporalException("Reserva já iniciada não pode ser alterada");
+        }
+        if (ESTADOS_TERMINAIS_SEM_ALTERACAO.contains(estado)) {
+            throw new ReservaTemporalException("Reserva finalizada não pode ser alterada");
         }
         validarTemporalidade(novoInicio, novoFim);
         this.inicio = novoInicio;

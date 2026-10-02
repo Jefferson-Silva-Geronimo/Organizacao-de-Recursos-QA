@@ -1,6 +1,5 @@
 package com.organizacao_de_recursos.domain;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +14,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RF-10: Criação de Reserva
@@ -34,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - T-RF10-007: Conflicts - Sobreposição em professor
  * - T-RF10-008: Conflicts - Recurso em manutenção
  * - T-RF10-009: Conflicts - Dupla simultânea (RN-04)
- * - T-RF10-010: Boundary - Período RN-01 válido (fim > início) [BLOQUEADO_POR_LACUNA]
+ * - T-RF10-010: Boundary - Período no limite da duração mínima (15 minutos, D7)
  * - T-RF10-011: Invalid Input - Fim anterior ao início (RN-01)
  * - T-RF10-012: Invalid Input - Recurso inexistente
  * - T-RF10-013: Forbidden State - Solicitante cria para outro Solicitante
@@ -252,10 +250,19 @@ class ReservaCriacao_RF10_Test {
     }
 
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: plano não define a duração mínima (§4.3) - resultado 'Aceita OU conforme política (PENDENTE)'")
-    @DisplayName("T-RF10-010: Boundary - Período RN-01 válido (fim > início)")
+    @DisplayName("T-RF10-010: Boundary - Período no limite da duração mínima (15 minutos, D7)")
     void deveAceitarCriacaoComPeriodoValidoMinimo() {
-        fail("Caso bloqueado: duração mínima de reserva indefinida no plano (§4.3)");
+        // Arrange - duração mínima definida em D7: 15 minutos
+        Usuario solicitante = solicitante(1L, "solicitante1");
+        Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
+        Reserva reserva = reservaEm(salaA, DIA_08H, DIA_08H.plusMinutes(15));
+        ServicoCriacaoReserva servico = new ServicoCriacaoReserva();
+
+        // Act
+        Reserva criada = servico.criarReserva(solicitante, reserva);
+
+        // Assert
+        assertThat(criada.getEstado()).isEqualTo("SOLICITADA");
     }
 
     @Test

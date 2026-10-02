@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: organizacao-de-recursos
+  profiles:
+    active: dev
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  datasource:
+    hikari:
+      # Acomoda as transações REQUIRES_NEW de ConflitoEvitadoService sob concorrência pesada
+      # (cada tentativa recusada abre uma 2ª conexão além da transação principal).
+      maximum-pool-size: 40
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+app:
+  security:
+    jwt:
+      # Trocar via variável de ambiente JWT_SECRET em qualquer ambiente real; valor abaixo é só para dev/test.
+      secret: "${JWT_SECRET:troque-este-segredo-em-producao-por-uma-chave-aleatoria-de-32-bytes-ou-mais}"
+      validade-minutos: 120
+  notificacao:
+    # Em dev, o canal simulado é usado (ver NotificacaoConfig); fora de dev, HTTP real.
+    base-url: "${NOTIFICACAO_BASE_URL:http://localhost:9999}"
+    timeout-conexao-ms: 2000
+    timeout-leitura-ms: 3000
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

@@ -1,6 +1,5 @@
 package com.organizacao_de_recursos.domain;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -8,7 +7,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RN-09: Auditoria de Mudança de Estado
@@ -23,8 +21,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - T-RN09-005: Invalid Input - Operação sem autenticação
  * - T-RN09-006: Forbidden State - Tentar editar auditoria
  * - T-RN09-007: Forbidden State - Tentar apagar auditoria
- * - T-RN09-008: Conflicts - Operação recusada gera auditoria [BLOQUEADO_POR_LACUNA]
- * - T-RN09-009: Boundary - Auditoria com timestamp granular [BLOQUEADO_POR_LACUNA]
+ * - T-RN09-008: removido (decisão de negócio) - evento_auditoria só registra mudanças efetivas,
+ *   nunca tentativas recusadas (ver ADR-015)
+ * - T-RN09-009: Boundary - Auditoria com timestamp granular (desempate por id sequencial)
  * - T-RN09-010: Boundary - Auditoria após tentativa de apagamento proibido
  */
 @DisplayName("RN-09: Auditoria de Mudança de Estado")
@@ -166,18 +165,29 @@ class ReservaAuditoria_RN09_Test {
                 .hasMessageContaining("Auditoria não pode ser removida");
     }
 
-    @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: plano deixa pendente se a operação recusada gera auditoria de tentativa OU não (PENDENTE)")
-    @DisplayName("T-RN09-008: Conflicts - Operação recusada gera auditoria de tentativa")
-    void operacaoRecusadaDeveGerarRegistroDeAuditoria() {
-        fail("Caso bloqueado: política de auditoria de operação recusada indefinida no plano");
-    }
+    // T-RN09-008 removido: decisão de negócio (sessão de migração) - evento_auditoria só registra
+    // mudanças de estado EFETIVAS (consistente com D2/D3); uma operação recusada nunca chega a mudar
+    // de estado, então não gera linha de auditoria de negócio (apenas resposta HTTP 409/422 na API).
 
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: 'mecanismo de desempate OU ambiguidade (PENDENTE)' - política de timestamp/precisão indefinida (§4.2)")
     @DisplayName("T-RN09-009: Boundary - Auditoria com timestamp granular preserva ordenação")
     void auditoriaComTimestampGranularDeveSerOrdenada() {
-        fail("Caso bloqueado: política de desempate de timestamp indefinida no plano (§4.2)");
+        // Arrange - decisão: desempate por id sequencial de inserção quando o timestamp coincide
+        ValidadorAuditoria validador = new ValidadorAuditoria();
+        Reserva reserva = new Reserva();
+        reserva.setId(1L);
+        Usuario usuario = new Usuario(1L, "user1", Usuario.Perfil.SOLICITANTE);
+
+        // Act - várias mudanças em sucessão rápida, timestamps podem coincidir na granularidade do relógio
+        validador.registrarAuditoria(reserva, usuario, "CRIAR", "SOLICITADA");
+        validador.registrarAuditoria(reserva, usuario, "APROVAR", "APROVADA", "SOLICITADA");
+        validador.registrarAuditoria(reserva, usuario, "INICIAR", "EM_USO", "APROVADA");
+        List<Auditoria> historico = validador.obterAuditoriasOrdenadas(reserva.getId());
+        List<Long> ids = historico.stream().map(Auditoria::getId).toList();
+
+        // Assert - ordem de inserção preservada mesmo com timestamps potencialmente iguais
+        assertThat(historico).extracting(Auditoria::getAcao).containsExactly("CRIAR", "APROVAR", "INICIAR");
+        assertThat(ids).isSorted();
     }
 
     @Test

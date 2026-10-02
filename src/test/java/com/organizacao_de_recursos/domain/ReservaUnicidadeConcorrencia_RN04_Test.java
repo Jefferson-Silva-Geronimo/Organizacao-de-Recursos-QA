@@ -1,6 +1,5 @@
 package com.organizacao_de_recursos.domain;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +13,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RN-04: Unicidade Sob Concorrência
@@ -28,10 +26,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - T-RN04-002: Conflicts - Tripla simultânea: exatamente 1 aceita, 2 recusadas
  * - T-RN04-003: Happy Path - Sequencial (não simultâneo)
  * - T-RN04-004: Conflicts - Dupla em recursos diferentes
- * - T-RN04-005: Conflicts - Dupla em períodos adjacentes [BLOQUEADO_POR_LACUNA]
- * - T-RN04-006: Conflicts - Dupla: um com recurso restrito, um sem [BLOQUEADO_POR_LACUNA]
+ * - T-RN04-005: Conflicts - Dupla em períodos adjacentes
+ * - T-RN04-006: Conflicts - Dupla: um com recurso restrito, um sem
  * - T-RN04-007: Conflicts - Garantir consistência após aceitar uma
- * - T-RN04-008: Conflicts - Sem race condition em auditoria [BLOQUEADO_POR_LACUNA]
+ * - T-RN04-008: Conflicts - Sem race condition em auditoria
  *
  * As solicitações "simultâneas" são disparadas em threads distintas, liberadas ao mesmo
  * tempo por um CountDownLatch, contra o ValidadorConcorrencia.
@@ -115,17 +113,40 @@ class ReservaUnicidadeConcorrencia_RN04_Test {
     }
 
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: política de adjacência indefinida (Q-002) - resultado 'Ambas aceitas OU conforme política de adjacência (PENDENTE)'")
     @DisplayName("T-RN04-005: Conflicts - Dupla em períodos adjacentes simultâneas")
     void duplaEmPeriodosAdjacentesSimultaneasDevemSerAceitas() {
-        fail("Caso bloqueado: política de adjacência indefinida no plano (Q-002)");
+        // Arrange - D7: períodos adjacentes (fim da primeira = início da segunda) não conflitam;
+        // o ValidadorConcorrencia tranca por chave exata (recurso+início+fim), então duas chaves
+        // diferentes (períodos adjacentes, não idênticos) nunca disputam o mesmo lock.
+        Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
+        ValidadorConcorrencia validador = new ValidadorConcorrencia();
+        Reserva r1 = criarReserva(1L, salaA, DIA_08H, DIA_09H);
+        Reserva r2 = criarReserva(2L, salaA, DIA_09H, DIA_09H.plusHours(1));
+
+        // Act
+        boolean aceita = validador.processarDuplaPeriodosAdjacentes(r1, r2);
+
+        // Assert - ambas aceitas
+        assertThat(aceita).isTrue();
     }
 
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: resultado 'Request 2 pode ser aceita conforme status' e 'Prof restrito' sem critério de recurso restrito (Q-003)")
     @DisplayName("T-RN04-006: Conflicts - Dupla: um com recurso restrito, um sem")
-    void duplaComRecursoRestritoESemRestricao() {
-        fail("Caso bloqueado: resultado da Request 2 e critério de recurso restrito indefinidos no plano (Q-003)");
+    void duplaComRecursoRestritoESemRestricao() throws Exception {
+        // Arrange - decisão: Recurso.restrito já é o critério de "recurso restrito" (usado na
+        // aprovação, D2/D6); a concorrência (RN-04) é agnóstica a essa flag - mesma disputa por
+        // chave exata, independentemente de o recurso ser restrito ou comum.
+        Recurso salaRestrita = new Recurso(1L, "Auditório Restrito", Recurso.TipoRecurso.SALA);
+        salaRestrita.setRestrito(true);
+        ValidadorConcorrencia validador = new ValidadorConcorrencia();
+        Reserva restrita = criarReserva(1L, salaRestrita, DIA_08H, DIA_09H);
+        Reserva comumMesmoPeriodo = criarReserva(2L, salaRestrita, DIA_08H, DIA_09H);
+
+        // Act
+        List<Boolean> resultados = processarSimultaneamente(validador, restrita, comumMesmoPeriodo);
+
+        // Assert - exatamente uma aceita, independentemente da flag "restrito"
+        assertThat(resultados).containsExactlyInAnyOrder(true, false);
     }
 
     @Test
@@ -147,10 +168,69 @@ class ReservaUnicidadeConcorrencia_RN04_Test {
     }
 
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: 'PENDENTE: política de timestamp' (§4.2) - ordem/sequência da auditoria sob concorrência não definida")
     @DisplayName("T-RN04-008: Conflicts - Sem race condition em auditoria")
-    void naoDeveHaverRaceConditionEmAuditoria() {
-        fail("Caso bloqueado: política de timestamp/sequência de auditoria indefinida no plano (§4.2)");
+    void naoDeveHaverRaceConditionEmAuditoria() throws Exception {
+        // Arrange - decisão: desempate de auditoria por id sequencial de inserção (ver RN-09).
+        // Duas reservas distintas disparam auditoria concorrentemente; o contador de id de
+        // Auditoria é um AtomicLong, portanto thread-safe por construção.
+        // IDs exclusivos (fora da faixa 1-20 usada pelo resto da suíte): ValidadorAuditoria tem
+        // um mapa estático de auditorias pendentes (ServicoCriacaoReserva etc.) compartilhado
+        // entre todas as classes de teste na mesma JVM do Surefire (P4/P5, defeito conhecido do
+        // ATAM, mantido de propósito na camada de domínio pura); reusar ids pequenos faria este
+        // teste herdar lixo estático deixado por outros testes.
+        Reserva r1 = criarReserva(910001L, new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA), DIA_08H, DIA_09H);
+        Reserva r2 = criarReserva(910002L, new Recurso(2L, "Sala B", Recurso.TipoRecurso.SALA), DIA_08H, DIA_09H);
+        Usuario usuario = new Usuario(1L, "user1", Usuario.Perfil.SOLICITANTE);
+        ValidadorAuditoria validador = new ValidadorAuditoria();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch largada = new CountDownLatch(1);
+
+        // Act
+        try {
+            List<Future<Auditoria>> futuros = new ArrayList<>();
+            for (Reserva r : List.of(r1, r2)) {
+                futuros.add(executor.submit(() -> {
+                    largada.await();
+                    validador.registrarAuditoria(r, usuario, "CRIAR", "SOLICITADA");
+                    return validador.obterAuditorias(r.getId()).get(0);
+                }));
+            }
+            largada.countDown();
+            Auditoria a1 = futuros.get(0).get(10, TimeUnit.SECONDS);
+            Auditoria a2 = futuros.get(1).get(10, TimeUnit.SECONDS);
+
+            // Assert - ids distintos (sem colisão/sobrescrita sob concorrência)
+            assertThat(a1.getId()).isNotEqualTo(a2.getId());
+            assertThat(validador.obterAuditorias(r1.getId())).hasSize(1);
+            assertThat(validador.obterAuditorias(r2.getId())).hasSize(1);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("Métodos auxiliares de cenário (chamada direta, sem concorrência real)")
+    void metodosAuxiliaresDeCenario() {
+        Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
+        Recurso salaRestrita = new Recurso(2L, "Sala Restrita", Recurso.TipoRecurso.SALA);
+        salaRestrita.setRestrito(true);
+        ValidadorConcorrencia validador = new ValidadorConcorrencia();
+
+        // processarReservaComRestricao: não lança, apenas registra as duas tentativas
+        assertThatNoException().isThrownBy(() -> validador.processarReservaComRestricao(
+                criarReserva(1L, salaRestrita, DIA_08H, DIA_09H), criarReserva(2L, salaA, DIA_08H, DIA_09H)));
+
+        // verificarConsistenciaAposConcorrencia / validarSequenciaAuditoriaConcorrente: exatamente uma aceita (XOR)
+        Recurso salaB = new Recurso(3L, "Sala B", Recurso.TipoRecurso.SALA);
+        boolean consistente = validador.verificarConsistenciaAposConcorrencia(
+                criarReserva(3L, salaB, DIA_08H, DIA_09H), criarReserva(4L, salaB, DIA_08H, DIA_09H));
+        assertThat(consistente).isTrue();
+
+        Recurso salaC = new Recurso(4L, "Sala C", Recurso.TipoRecurso.SALA);
+        boolean sequenciaOk = validador.validarSequenciaAuditoriaConcorrente(
+                criarReserva(5L, salaC, DIA_08H, DIA_09H), criarReserva(6L, salaC, DIA_08H, DIA_09H),
+                new ValidadorAuditoria());
+        assertThat(sequenciaOk).isTrue();
     }
 
     /** Dispara uma solicitação por reserva, todas liberadas ao mesmo tempo, e devolve os resultados (true = aceita). */

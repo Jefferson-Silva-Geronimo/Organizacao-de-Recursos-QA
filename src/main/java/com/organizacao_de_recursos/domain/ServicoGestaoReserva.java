@@ -31,7 +31,7 @@ public class ServicoGestaoReserva {
         reservas.alterarPeriodo(reserva, novoInicio, novoFim);
     }
 
-    /** Cancela a reserva do próprio solicitante. */
+    /** Cancela a reserva do próprio solicitante; libera a sala/material e a agenda do professor (D4, corrige P2/P15). */
     public void cancelarReserva(Usuario usuario, Reserva reserva) {
         validarSolicitanteDaReserva(usuario, reserva, "cancelá-la");
         new ValidadorApagamento().validarApagamento(reserva);
@@ -39,12 +39,15 @@ public class ServicoGestaoReserva {
         ValidadorAuditoria.registrarAuditoriaPendente(
                 new Auditoria(reserva.getId(), usuario.getUsername(), "CANCELAR", "CANCELADA", reserva.getEstado()));
         reserva.setEstado("CANCELADA");
+        if (reserva.getProfessor() != null) {
+            reserva.getProfessor().removerAgenda(reserva.getInicio(), reserva.getFim());
+        }
     }
 
     private void validarSolicitanteDaReserva(Usuario usuario, Reserva reserva, String operacao) {
         autorizacao.validarUsuarioAtivo(usuario);
         Usuario dono = reserva.getUsuarioSolicitante();
-        if (dono == null || !Objects.equals(dono.getId(), usuario.getId())) {
+        if (dono == null || dono.getId() == null || usuario.getId() == null || !Objects.equals(dono.getId(), usuario.getId())) {
             throw new AcessoNegadoException("Acesso negado. Somente o solicitante da reserva pode " + operacao);
         }
     }

@@ -7,13 +7,20 @@ import java.util.*;
  * Toda mudança de estado deve gerar registro de auditoria.
  */
 public class ValidadorAuditoria {
-    private Map<Long, List<Auditoria>> auditoriasPorReserva = new HashMap<>();
-    private static final Map<Long, List<Auditoria>> auditoriasPendentes = new HashMap<>();
+    // ConcurrentHashMap/CopyOnWriteArrayList: corrige race condition (RN-04) quando a mesma
+    // instância é compartilhada entre threads - um HashMap comum pode perder entradas ou
+    // corromper sua estrutura interna sob computeIfAbsent/add concorrentes, mesmo em chaves
+    // distintas (rehash concorrente).
+    private final Map<Long, List<Auditoria>> auditoriasPorReserva = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Map<Long, List<Auditoria>> auditoriasPendentes = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Sentinela para reserva ainda sem id persistido - ConcurrentHashMap não aceita chave nula. */
+    private static final Long SEM_ID = -1L;
 
     static void registrarAuditoriaPendente(Auditoria auditoria) {
-        synchronized (auditoriasPendentes) {
-            auditoriasPendentes.computeIfAbsent(auditoria.getReservaId(), k -> new ArrayList<>()).add(auditoria);
-        }
+        Long chave = auditoria.getReservaId() != null ? auditoria.getReservaId() : SEM_ID;
+        auditoriasPendentes.computeIfAbsent(chave, k -> new java.util.concurrent.CopyOnWriteArrayList<>())
+                .add(auditoria);
     }
 
     /**
@@ -27,7 +34,7 @@ public class ValidadorAuditoria {
     public void registrarAuditoria(Reserva reserva, Usuario usuario, String acao, String estadoNovo) {
         validarUsuarioAuditoria(usuario);
         Auditoria auditoria = new Auditoria(reserva.getId(), usuario.getUsername(), acao, estadoNovo);
-        auditoriasPorReserva.computeIfAbsent(reserva.getId(), k -> new ArrayList<>())
+        auditoriasPorReserva.computeIfAbsent(reserva.getId(), k -> new java.util.concurrent.CopyOnWriteArrayList<>())
                 .add(auditoria);
     }
 
@@ -37,7 +44,7 @@ public class ValidadorAuditoria {
     public void registrarAuditoria(Reserva reserva, Usuario usuario, String acao, String estadoNovo, String estadoAnterior) {
         validarUsuarioAuditoria(usuario);
         Auditoria auditoria = new Auditoria(reserva.getId(), usuario.getUsername(), acao, estadoNovo, estadoAnterior);
-        auditoriasPorReserva.computeIfAbsent(reserva.getId(), k -> new ArrayList<>())
+        auditoriasPorReserva.computeIfAbsent(reserva.getId(), k -> new java.util.concurrent.CopyOnWriteArrayList<>())
                 .add(auditoria);
     }
 
@@ -46,11 +53,9 @@ public class ValidadorAuditoria {
      */
     public List<Auditoria> obterAuditorias(Long reservaId) {
         if (!auditoriasPorReserva.containsKey(reservaId)) {
-            synchronized (auditoriasPendentes) {
-                List<Auditoria> pendentes = auditoriasPendentes.remove(reservaId);
-                if (pendentes != null) {
-                    auditoriasPorReserva.put(reservaId, pendentes);
-                }
+            List<Auditoria> pendentes = auditoriasPendentes.remove(reservaId);
+            if (pendentes != null) {
+                auditoriasPorReserva.put(reservaId, pendentes);
             }
         }
         return auditoriasPorReserva.getOrDefault(reservaId, new ArrayList<>());
@@ -93,12 +98,13 @@ public class ValidadorAuditoria {
         validarUsuarioAuditoria(usuario);
         Auditoria auditoria = new Auditoria(reserva.getId(), usuario.getUsername(), operacao, "RECUSADA");
         auditoria.setDescricao(motivo);
-        auditoriasPorReserva.computeIfAbsent(reserva.getId(), k -> new ArrayList<>()).add(auditoria);
+        auditoriasPorReserva.computeIfAbsent(reserva.getId(), k -> new java.util.concurrent.CopyOnWriteArrayList<>()).add(auditoria);
     }
 
+    /** Ordena por timestamp e desempata por id (ordem de inserção) quando o timestamp coincide (corrige RN-09/RN-04). */
     public List<Auditoria> obterAuditoriasOrdenadas(Long reservaId) {
         List<Auditoria> auditorias = new ArrayList<>(obterAuditorias(reservaId));
-        auditorias.sort(java.util.Comparator.comparing(Auditoria::getTimestamp));
+        auditorias.sort(java.util.Comparator.comparing(Auditoria::getTimestamp).thenComparing(Auditoria::getId));
         return auditorias;
     }
 

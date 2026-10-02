@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Login')}"></head>
+<body>
+<div class="container" style="max-width: 420px; margin-top: 10vh;">
+    <h1 class="h4 mb-4 text-center">Organização de Recursos</h1>
+    <div class="alert alert-danger" th:if="${param.error}">Usuário ou senha inválidos.</div>
+    <div class="alert alert-success" th:if="${param.logout}">Sessão encerrada.</div>
+    <form th:action="@{/login}" method="post" class="card card-body">
+        <div class="mb-3">
+            <label for="username" class="form-label">Usuário</label>
+            <input type="text" id="username" name="username" class="form-control" required autofocus/>
+        </div>
+        <div class="mb-3">
+            <label for="password" class="form-label">Senha</label>
+            <input type="password" id="password" name="password" class="form-control" required/>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Entrar</button>
+    </form>
+</div>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Painel')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav}"></nav>
+<div class="container">
+    <h1 class="h4">Bem-vindo(a), <span th:text="${username}">usuário</span></h1>
+    <p class="text-muted">Perfil: <span th:text="${perfil}">PERFIL</span></p>
+    <ul>
+        <li sec:authorize="hasRole('SOLICITANTE')">
+            <a th:href="@{/reservas/nova}">Criar nova reserva</a> ·
+            <a th:href="@{/reservas/minhas}">Ver minhas reservas</a>
+        </li>
+        <li sec:authorize="hasRole('RESPONSAVEL')">
+            <a th:href="@{/reservas/aprovacao}">Ver fila de aprovação</a>
+        </li>
+        <li sec:authorize="hasRole('ADMINISTRADOR')">
+            <a th:href="@{/salas}">Gerenciar salas</a>
+        </li>
+    </ul>
+</div>
+</body>
+</html>

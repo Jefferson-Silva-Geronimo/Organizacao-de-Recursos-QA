@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Serviço de Criação de Reserva para RF-10.
@@ -18,9 +19,12 @@ import java.util.Map;
  * persistência (constraint, lock ou isolamento) segue pendente conforme ADR-002.
  */
 public class ServicoCriacaoReserva {
+    private static final AtomicLong CONTADOR_ID = new AtomicLong(0);
+
     private final Map<Long, Reserva> reservas = new HashMap<>();
     private final ValidadorSobreposicao validadorSobreposicao = new ValidadorSobreposicao();
     private final ValidadorManutencao validadorManutencao;
+    private final GestaoBloqueios bloqueios;
     private final Object secaoCritica = new Object();
 
     public ServicoCriacaoReserva() {
@@ -31,12 +35,24 @@ public class ServicoCriacaoReserva {
      * @param validadorManutencao fonte dos períodos de manutenção consultados na confirmação (RN-05)
      */
     public ServicoCriacaoReserva(ValidadorManutencao validadorManutencao) {
+        this(validadorManutencao, new GestaoBloqueios());
+    }
+
+    /**
+     * @param validadorManutencao fonte dos períodos de manutenção consultados na confirmação (RN-05)
+     * @param bloqueios fonte dos bloqueios consultados na criação (D5, corrige P1)
+     */
+    public ServicoCriacaoReserva(ValidadorManutencao validadorManutencao, GestaoBloqueios bloqueios) {
         this.validadorManutencao = validadorManutencao != null ? validadorManutencao : new ValidadorManutencao();
+        this.bloqueios = bloqueios != null ? bloqueios : new GestaoBloqueios();
     }
 
     public Reserva criarReserva(Usuario solicitante, Reserva reserva) {
         if (solicitante == null || !solicitante.isAtivo()) {
             throw new ReservaCriacaoException("Solicitante inválido");
+        }
+        if (solicitante.getPerfil() != Usuario.Perfil.SOLICITANTE) {
+            throw new ReservaCriacaoException("Apenas Solicitante pode criar reserva");
         }
         if (reserva.getRecurso() == null) {
             throw new ReservaCriacaoException("Recurso não encontrado");
@@ -54,6 +70,7 @@ public class ServicoCriacaoReserva {
                 throw new ReservaCriacaoException("conflito em " + tipoRecurso(e.getRecursoEmConflito(), reserva), e);
             }
             validarManutencao(reserva);
+            validarBloqueio(reserva);
             if (reserva.getProfessor() != null && reserva.getProfessor().temConflito(reserva.getInicio(), reserva.getFim())) {
                 throw new ReservaCriacaoException("conflito professor");
             }
@@ -61,7 +78,7 @@ public class ServicoCriacaoReserva {
             reserva.setEstado("SOLICITADA");
             reserva.setApprovalRequired(reserva.getRecurso().isRestrito());
             if (reserva.getId() == null) {
-                reserva.setId((long) (reservas.size() + 1));
+                reserva.setId(CONTADOR_ID.incrementAndGet());
             }
             reservas.put(reserva.getId(), reserva);
             validadorSobreposicao.registrarReserva(reserva);
@@ -139,15 +156,29 @@ public class ServicoCriacaoReserva {
 
     /** Recusa a reserva se sala ou material estiver em manutenção no período (RN-05). */
     private void validarManutencao(Reserva reserva) {
-        List<Recurso> recursos = new ArrayList<>();
-        recursos.add(reserva.getRecurso());
-        recursos.addAll(reserva.getMateriais());
-        for (Recurso recurso : recursos) {
+        for (Recurso recurso : recursosDaReserva(reserva)) {
             if (!validadorManutencao.verificarDisponibilidade(recurso, reserva.getInicio(), reserva.getFim())) {
                 throw new ReservaCriacaoException(
                         "Recurso em manutenção no período solicitado: " + recurso.getNome());
             }
         }
+    }
+
+    /** Recusa a reserva se sala ou material estiver bloqueado no período (D5, corrige P1). */
+    private void validarBloqueio(Reserva reserva) {
+        for (Recurso recurso : recursosDaReserva(reserva)) {
+            if (!bloqueios.estaDisponivel(recurso, reserva.getInicio(), reserva.getFim())) {
+                throw new ReservaCriacaoException(
+                        "Recurso bloqueado no período solicitado: " + recurso.getNome());
+            }
+        }
+    }
+
+    private List<Recurso> recursosDaReserva(Reserva reserva) {
+        List<Recurso> recursos = new ArrayList<>();
+        recursos.add(reserva.getRecurso());
+        recursos.addAll(reserva.getMateriais());
+        return recursos;
     }
 
     private String tipoRecurso(Recurso recursoEmConflito, Reserva reserva) {

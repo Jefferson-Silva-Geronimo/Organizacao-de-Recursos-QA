@@ -145,5 +145,10 @@ public class ValidadorAprovacao {
         if ("APROVADA".equals(reserva.getEstado())) {
             throw new ReservaAprovacaoException("Solicitação já foi aprovada");
         }
+        // Corrige P7: só se aprova a partir de SOLICITADA (nunca de REJEITADA, CANCELADA, EM_USO, etc.)
+        String estadoAtual = reserva.getEstado();
+        if (estadoAtual != null && !"SOLICITADA".equals(estadoAtual)) {
+            throw new ReservaAprovacaoException("Reserva em estado " + estadoAtual + " não pode ser aprovada");
+        }
     }
 }

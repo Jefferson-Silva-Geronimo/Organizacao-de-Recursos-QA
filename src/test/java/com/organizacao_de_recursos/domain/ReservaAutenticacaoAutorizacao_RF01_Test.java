@@ -1,6 +1,5 @@
 package com.organizacao_de_recursos.domain;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.assertj.core.api.SoftAssertions;
@@ -8,7 +7,6 @@ import org.assertj.core.api.SoftAssertions;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RF-01: Autenticação e Autorização por Perfil
@@ -25,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - T-RF01-005: Forbidden State - Responsável tenta gerenciar usuários (sem permissão)
  * - T-RF01-006: Invalid Input - Token inválido ou expirado
  * - T-RF01-007: Invalid Input - Sem token
- * - T-RF01-008: Forbidden State - Usuário com múltiplos perfis [BLOQUEADO_POR_LACUNA]
+ * - T-RF01-008: Forbidden State - Usuário com múltiplos perfis (decisão: 1 único perfil, ver ADR-015)
  * - T-RF01-009: Boundary - Transição de perfil (logout/login)
  * - T-RF01-010: Forbidden State - Usuário desativado tenta acessar
  */
@@ -133,10 +131,22 @@ class ReservaAutenticacaoAutorizacao_RF01_Test {
     }
 
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: perfil prioritário para usuário com múltiplos perfis 'PENDENTE DE DECISÃO' (plano)")
     @DisplayName("T-RF01-008: Forbidden State - Usuário com múltiplos perfis validação de prioridade")
     void usuarioMultiplosPerfisDeveSerValidadoConformePolitica() {
-        fail("Caso bloqueado: política de múltiplos perfis indefinida no plano");
+        // Arrange - decisão: Usuario mantém 1 único perfil (enum simples); não existe modelo de
+        // múltiplos perfis simultâneos. Mudar de perfil sempre passa por GestaoUsuarios.definirPerfil,
+        // que devolve um novo Usuario com o perfil atualizado (nunca acumula perfis).
+        Usuario usuario = new Usuario(5L, "userMultiplo", Usuario.Perfil.SOLICITANTE);
+        Usuario admin = new Usuario(1L, "admin", Usuario.Perfil.ADMINISTRADOR);
+        GestaoUsuarios gestao = new GestaoUsuarios();
+
+        // Act
+        Usuario atualizado = gestao.definirPerfil(admin, usuario, Usuario.Perfil.RESPONSAVEL);
+
+        // Assert - o usuário nunca tem dois perfis ao mesmo tempo: o objeto atualizado tem exatamente
+        // um perfil (o novo), e é uma instância distinta da original (que preserva o perfil antigo)
+        assertThat(usuario.getPerfil()).isEqualTo(Usuario.Perfil.SOLICITANTE);
+        assertThat(atualizado.getPerfil()).isEqualTo(Usuario.Perfil.RESPONSAVEL);
     }
 
     @Test

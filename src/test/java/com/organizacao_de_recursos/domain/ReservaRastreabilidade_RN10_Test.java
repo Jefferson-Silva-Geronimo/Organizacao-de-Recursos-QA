@@ -1,7 +1,6 @@
 package com.organizacao_de_recursos.domain;
 
 import org.assertj.core.api.SoftAssertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -20,7 +19,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RN-10: Rastreabilidade dos Requisitos Críticos
@@ -41,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - T-RN10-007: Happy Path - Meta de cobertura RNs críticas
  * - T-RN10-008: Invalid Input - Requisito crítico não testado
  * - T-RN10-009: Happy Path - Divergências e aceites registrados
- * - T-RN10-010: Boundary - Matriz atualizada após mudança [BLOQUEADO_POR_LACUNA]
+ * - T-RN10-010: removido (regra de processo não testável automaticamente, ação A-14 do ciclo-01.md)
  */
 @DisplayName("RN-10: Rastreabilidade dos Requisitos Críticos")
 class ReservaRastreabilidade_RN10_Test {
@@ -289,12 +287,10 @@ class ReservaRastreabilidade_RN10_Test {
         assertThat(secaoDivergencias).contains("as divergências não foram ocultadas");
     }
 
-    @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: 'matriz atualizada em paralelo à implementação (TDD)' é regra de processo sem entrada/estímulo verificável definidos no plano")
-    @DisplayName("T-RN10-010: Boundary - Matriz atualizada após mudança")
-    void matrizDeveSerAtualizadaAposMudanca() {
-        fail("Caso bloqueado: critério verificável de atualização da matriz após mudança indefinido no plano");
-    }
+    // T-RN10-010 removido: "matriz atualizada em paralelo à implementação" é regra de PROCESSO
+    // (disciplina da equipe), sem entrada/estímulo verificável por teste automatizado - não é
+    // comportamento de sistema (ação A-14 do ciclo-01.md). RastreabilidadeValidator (stub com
+    // retorno fixo que simulava essa verificação) foi removido pelo mesmo motivo.
 
     /** Mapa id do caso -> classe de teste, lido dos @DisplayName em src/test/java (casos T-RNnn e T-RFnn). */
     private static Map<String, String> idsDeTesteNoCodigo() throws IOException {

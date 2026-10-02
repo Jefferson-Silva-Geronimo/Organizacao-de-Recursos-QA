@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Fila de Aprovação')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav}"></nav>
+<div class="container">
+    <h1 class="h4 mb-4">Fila de aprovação (seu escopo)</h1>
+    <div class="alert alert-success" th:if="${sucesso}" th:text="${sucesso}"></div>
+    <div class="alert alert-danger" th:if="${erro}" th:text="${erro}"></div>
+    <table class="table table-striped">
+        <thead>
+        <tr>
+            <th>Id</th>
+            <th>Solicitante</th>
+            <th>Início</th>
+            <th>Fim</th>
+            <th>Estado</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="reserva : ${reservas}">
+            <td th:text="${reserva.id}"></td>
+            <td th:text="${reserva.solicitanteId}"></td>
+            <td th:text="${reserva.inicio}"></td>
+            <td th:text="${reserva.fim}"></td>
+            <td th:text="${reserva.estado}"></td>
+            <td th:if="${reserva.estado.name() == 'SOLICITADA'}">
+                <form th:action="@{/reservas/{id}/aprovar(id=${reserva.id})}" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-success">Aprovar</button>
+                </form>
+                <form th:action="@{/reservas/{id}/rejeitar(id=${reserva.id})}" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Rejeitar</button>
+                </form>
+            </td>
+        </tr>
+        <tr th:if="${reservas.isEmpty()}">
+            <td colspan="6" class="text-muted">Nenhuma reserva no seu escopo.</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

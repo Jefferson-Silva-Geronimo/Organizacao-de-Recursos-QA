@@ -1,13 +1,11 @@
 package com.organizacao_de_recursos.domain;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RN-03: Agenda do Professor
@@ -21,14 +19,34 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - T-RN03-003: Conflicts - Sobreposição com agenda do professor
  * - T-RN03-004: Conflicts - Múltiplos professores, um com conflito
  * - T-RN03-005: Conflicts - Alterar reserva criando conflito de agenda
- * - T-RN03-006: Boundary - Professor com agenda até o minuto exato de início [BLOQUEADO_POR_LACUNA]
+ * - T-RN03-006: Boundary - Professor com agenda até o minuto exato de início
  * - T-RN03-007: Invalid Input - Professor inexistente
- * - T-RN03-008: Invalid Input - Agenda com formato inválido [BLOQUEADO_POR_LACUNA]
- * - T-RN03-009: Forbidden State - Tentar sobrepor agenda de professor já alocado [BLOQUEADO_POR_LACUNA]
+ * - T-RN03-008: Invalid Input - Agenda com formato inválido
+ * - T-RN03-009: Forbidden State - Tentar sobrepor agenda de professor já alocado
  * - T-RN03-010: Conflicts - Professor simultaneamente em duas reservas (dias diferentes)
  */
 @DisplayName("RN-03: Agenda do Professor")
 class ReservaAgendaProfessor_RN03_Test {
+
+    @Test
+    @DisplayName("removerAgenda: libera a agenda do professor (D4); chamada repetida não lança")
+    void removerAgenda_liberaEIgnoraSeNaoEncontrado() {
+        Professor professor = new Professor(1L, "Prof X");
+        professor.adicionarAgenda(SEG_08H, SEG_09H);
+
+        professor.removerAgenda(SEG_08H, SEG_09H);
+        assertThat(professor.temConflito(SEG_08H, SEG_09H)).isFalse();
+
+        // período que nunca esteve na agenda: não lança, apenas não encontra nada para remover
+        assertThatNoException().isThrownBy(() -> professor.removerAgenda(TER_08H, TER_09H));
+    }
+
+    @Test
+    @DisplayName("validarFormatoAgenda: formato válido não lança")
+    void validarFormatoAgenda_valido() {
+        Professor professor = new Professor(1L, "Prof X");
+        assertThatNoException().isThrownBy(() -> professor.validarFormatoAgenda("08:00", "09:00"));
+    }
 
     private static final LocalDateTime SEG_08H = LocalDateTime.of(2026, 9, 21, 8, 0);
     private static final LocalDateTime SEG_09H = LocalDateTime.of(2026, 9, 21, 9, 0);
@@ -130,10 +148,20 @@ class ReservaAgendaProfessor_RN03_Test {
                 .hasMessageContaining("Alteração causaria conflito com agenda");
     }
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: política de adjacência indefinida (Q-002) - resultado 'Aceita OU Recusada conforme política de adjacência (PENDENTE)'")
     @DisplayName("T-RN03-006: Boundary - Professor com agenda até o minuto exato de início")
     void deveValidarAdjacenciaDeAgenda() {
-        fail("Caso bloqueado: política de adjacência indefinida no plano (Q-002)");
+        // Arrange - D7: intervalo semiaberto [início,fim) - agenda adjacente não conflita
+        Professor professorX = new Professor(1L, "Prof X");
+        professorX.adicionarAgenda(SEG_08H, SEG_09H);
+
+        Reserva reserva = new Reserva();
+        reserva.setProfessor(professorX);
+
+        ValidadorAgendaProfessor validador = new ValidadorAgendaProfessor();
+
+        // Act & Assert - nova reserva começa exatamente quando a agenda anterior termina
+        assertThatNoException()
+                .isThrownBy(() -> validador.validarAgenda(reserva, SEG_09H, SEG_10H));
     }
     @Test
     @DisplayName("T-RN03-007: Invalid Input - Professor inexistente")
@@ -149,16 +177,32 @@ class ReservaAgendaProfessor_RN03_Test {
                 .hasMessageContaining("Professor não encontrado");
     }
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: plano admite dois comportamentos incompatíveis - 'trata como sem agenda OU recusa'")
     @DisplayName("T-RN03-008: Invalid Input - Agenda com formato inválido")
     void deveRecusarAgendaComFormatoInvalido() {
-        fail("Caso bloqueado: plano não define se agenda inválida é tratada como 'sem agenda' ou recusada");
+        // Arrange - decisão: formato inválido é sempre recusado (rejeitado na borda), nunca tratado como "sem agenda"
+        Professor professorX = new Professor(1L, "Prof X");
+
+        // Act & Assert
+        assertThatThrownBy(() -> professorX.validarFormatoAgenda("08h30", "09:00"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Formato de hora inválido");
     }
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: resultado esperado 'Recusada conforme política' sem política definida no plano")
     @DisplayName("T-RN03-009: Forbidden State - Tentar sobrepor agenda de professor já alocado")
     void deveRecusarSobreporAgendaDeProfessorJaAlocado() {
-        fail("Caso bloqueado: política de alteração de reserva confirmada com professor alocado não definida no plano");
+        // Arrange - Prof X já alocado Seg 08:00-09:00; nova tentativa sobrepõe (não é adjacente)
+        Professor professorX = new Professor(1L, "Prof X");
+        professorX.adicionarAgenda(SEG_08H, SEG_09H);
+
+        Reserva reserva = new Reserva();
+        reserva.setProfessor(professorX);
+
+        ValidadorAgendaProfessor validador = new ValidadorAgendaProfessor();
+
+        // Act & Assert
+        assertThatThrownBy(() -> validador.validarAgenda(reserva, SEG_08H.plusMinutes(30), SEG_09H.plusMinutes(30)))
+                .isInstanceOf(ReservaAgendaProfessorException.class)
+                .hasMessageContaining("Professor indisponível");
     }
     @Test
     @DisplayName("T-RN03-010: Conflicts - Professor simultaneamente em duas reservas (dias diferentes)")

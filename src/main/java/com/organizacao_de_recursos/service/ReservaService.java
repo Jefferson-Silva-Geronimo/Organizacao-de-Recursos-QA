@@ -175,9 +175,7 @@ public class ReservaService {
         EstadoReserva anterior = reserva.getEstado();
         maquinaDeEstados.validarTransicao(anterior, EstadoReserva.CANCELADA);
         reserva.setEstado(EstadoReserva.CANCELADA);
-        for (ReservaRecursoEntity recurso : reservaRecursoRepository.findByReservaId(reservaId)) {
-            recurso.setOcupa(false);
-        }
+        liberarRecursos(reservaId);
         registrarAuditoria(reservaId, anterior, EstadoReserva.CANCELADA, solicitanteId);
         eventos.publishEvent(new ReservaNotificacaoEvent(reservaId, "CANCELADA"));
         return reserva;
@@ -220,9 +218,7 @@ public class ReservaService {
         maquinaDeEstados.validarTransicao(anterior, EstadoReserva.REJEITADA);
         reserva.setEstado(EstadoReserva.REJEITADA);
         reserva.setAprovadorId(responsavelId);
-        for (ReservaRecursoEntity recurso : reservaRecursoRepository.findByReservaId(reservaId)) {
-            recurso.setOcupa(false);
-        }
+        liberarRecursos(reservaId);
         registrarAuditoria(reservaId, anterior, EstadoReserva.REJEITADA, responsavelId);
         eventos.publishEvent(new ReservaNotificacaoEvent(reservaId, "REJEITADA"));
         return reserva;
@@ -248,9 +244,7 @@ public class ReservaService {
         EstadoReserva anterior = reserva.getEstado();
         maquinaDeEstados.validarTransicao(anterior, EstadoReserva.CONCLUIDA);
         reserva.setEstado(EstadoReserva.CONCLUIDA);
-        for (ReservaRecursoEntity recurso : reservaRecursoRepository.findByReservaId(reservaId)) {
-            recurso.setOcupa(false);
-        }
+        liberarRecursos(reservaId);
         registrarAuditoria(reservaId, anterior, EstadoReserva.CONCLUIDA, atorId);
         return reserva;
     }
@@ -263,11 +257,22 @@ public class ReservaService {
         EstadoReserva anterior = reserva.getEstado();
         maquinaDeEstados.validarTransicao(anterior, EstadoReserva.NAO_COMPARECEU);
         reserva.setEstado(EstadoReserva.NAO_COMPARECEU);
+        liberarRecursos(reservaId);
+        registrarAuditoria(reservaId, anterior, EstadoReserva.NAO_COMPARECEU, atorId);
+        return reserva;
+    }
+
+    /**
+     * Libera os recursos da reserva e força o flush imediatamente: o Hibernate agrupa o flush
+     * por tipo de operação (INSERTs antes de UPDATEs), então sem este flush explícito uma nova
+     * reserva criada na mesma transação teria seu INSERT enviado ao banco antes deste UPDATE,
+     * e a constraint de exclusão rejeitaria por ver a linha antiga ainda com ocupa=true.
+     */
+    private void liberarRecursos(Long reservaId) {
         for (ReservaRecursoEntity recurso : reservaRecursoRepository.findByReservaId(reservaId)) {
             recurso.setOcupa(false);
         }
-        registrarAuditoria(reservaId, anterior, EstadoReserva.NAO_COMPARECEU, atorId);
-        return reserva;
+        reservaRecursoRepository.flush();
     }
 
     private void verificarPodeOperarUso(ReservaEntity reserva, Long atorId) {

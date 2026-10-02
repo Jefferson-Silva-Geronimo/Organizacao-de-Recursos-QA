@@ -173,8 +173,13 @@ class ReservaUnicidadeConcorrencia_RN04_Test {
         // Arrange - decisão: desempate de auditoria por id sequencial de inserção (ver RN-09).
         // Duas reservas distintas disparam auditoria concorrentemente; o contador de id de
         // Auditoria é um AtomicLong, portanto thread-safe por construção.
-        Reserva r1 = criarReserva(1L, new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA), DIA_08H, DIA_09H);
-        Reserva r2 = criarReserva(2L, new Recurso(2L, "Sala B", Recurso.TipoRecurso.SALA), DIA_08H, DIA_09H);
+        // IDs exclusivos (fora da faixa 1-20 usada pelo resto da suíte): ValidadorAuditoria tem
+        // um mapa estático de auditorias pendentes (ServicoCriacaoReserva etc.) compartilhado
+        // entre todas as classes de teste na mesma JVM do Surefire (P4/P5, defeito conhecido do
+        // ATAM, mantido de propósito na camada de domínio pura); reusar ids pequenos faria este
+        // teste herdar lixo estático deixado por outros testes.
+        Reserva r1 = criarReserva(910001L, new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA), DIA_08H, DIA_09H);
+        Reserva r2 = criarReserva(910002L, new Recurso(2L, "Sala B", Recurso.TipoRecurso.SALA), DIA_08H, DIA_09H);
         Usuario usuario = new Usuario(1L, "user1", Usuario.Perfil.SOLICITANTE);
         ValidadorAuditoria validador = new ValidadorAuditoria();
         ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -201,6 +206,31 @@ class ReservaUnicidadeConcorrencia_RN04_Test {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    @DisplayName("Métodos auxiliares de cenário (chamada direta, sem concorrência real)")
+    void metodosAuxiliaresDeCenario() {
+        Recurso salaA = new Recurso(1L, "Sala A", Recurso.TipoRecurso.SALA);
+        Recurso salaRestrita = new Recurso(2L, "Sala Restrita", Recurso.TipoRecurso.SALA);
+        salaRestrita.setRestrito(true);
+        ValidadorConcorrencia validador = new ValidadorConcorrencia();
+
+        // processarReservaComRestricao: não lança, apenas registra as duas tentativas
+        assertThatNoException().isThrownBy(() -> validador.processarReservaComRestricao(
+                criarReserva(1L, salaRestrita, DIA_08H, DIA_09H), criarReserva(2L, salaA, DIA_08H, DIA_09H)));
+
+        // verificarConsistenciaAposConcorrencia / validarSequenciaAuditoriaConcorrente: exatamente uma aceita (XOR)
+        Recurso salaB = new Recurso(3L, "Sala B", Recurso.TipoRecurso.SALA);
+        boolean consistente = validador.verificarConsistenciaAposConcorrencia(
+                criarReserva(3L, salaB, DIA_08H, DIA_09H), criarReserva(4L, salaB, DIA_08H, DIA_09H));
+        assertThat(consistente).isTrue();
+
+        Recurso salaC = new Recurso(4L, "Sala C", Recurso.TipoRecurso.SALA);
+        boolean sequenciaOk = validador.validarSequenciaAuditoriaConcorrente(
+                criarReserva(5L, salaC, DIA_08H, DIA_09H), criarReserva(6L, salaC, DIA_08H, DIA_09H),
+                new ValidadorAuditoria());
+        assertThat(sequenciaOk).isTrue();
     }
 
     /** Dispara uma solicitação por reserva, todas liberadas ao mesmo tempo, e devolve os resultados (true = aceita). */

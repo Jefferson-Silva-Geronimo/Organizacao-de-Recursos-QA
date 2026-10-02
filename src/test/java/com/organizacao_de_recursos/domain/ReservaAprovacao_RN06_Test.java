@@ -179,6 +179,56 @@ class ReservaAprovacao_RN06_Test {
         assertThat(aprovadas).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("determinarStatusAprovacao: recurso restrito aguarda aprovação; comum é aprovado")
+    void determinarStatusAprovacao_refleteRestricaoDoRecurso() {
+        Recurso salaRestrita = new Recurso(1L, "Sala Restrita", Recurso.TipoRecurso.SALA);
+        salaRestrita.setRestrito(true);
+        Recurso salaComum = new Recurso(2L, "Sala Comum", Recurso.TipoRecurso.SALA);
+        ValidadorAprovacao validador = new ValidadorAprovacao();
+        Usuario solicitante = new Usuario(1L, "sol", Usuario.Perfil.SOLICITANTE);
+
+        assertThat(validador.determinarStatusAprovacao(new Reserva(), solicitante)).isEqualTo("APROVADA");
+        Reserva reservaRestrita = new Reserva();
+        reservaRestrita.setRecurso(salaRestrita);
+        assertThat(validador.determinarStatusAprovacao(reservaRestrita, solicitante)).isEqualTo("AGUARDANDO_APROVACAO");
+        Reserva reservaComum = new Reserva();
+        reservaComum.setRecurso(salaComum);
+        assertThat(validador.determinarStatusAprovacao(reservaComum, solicitante)).isEqualTo("APROVADA");
+    }
+
+    @Test
+    @DisplayName("aprovarConcorrente: recusa quando as duas disputam o mesmo recurso")
+    void aprovarConcorrente_recusaMesmoRecurso() {
+        Recurso salaRestrita = new Recurso(1L, "Sala Restrita", Recurso.TipoRecurso.SALA);
+        Usuario responsavel = new Usuario(2L, "user2", Usuario.Perfil.RESPONSAVEL);
+        Reserva r1 = reservaSolicitada(1L, salaRestrita);
+        Reserva r2 = reservaSolicitada(2L, salaRestrita);
+        ValidadorAprovacao validador = new ValidadorAprovacao();
+
+        assertThatThrownBy(() -> validador.aprovarConcorrente(r1, r2, responsavel))
+                .isInstanceOf(ReservaAprovacaoException.class);
+    }
+
+    @Test
+    @DisplayName("validarAprovacao: não lança para recurso comum nem para recurso restrito (apenas marca pendência)")
+    void validarAprovacao_naoLancaEmNenhumCaso() {
+        Recurso salaComum = new Recurso(1L, "Sala Comum", Recurso.TipoRecurso.SALA);
+        Recurso salaRestrita = new Recurso(2L, "Sala Restrita", Recurso.TipoRecurso.SALA);
+        salaRestrita.setRestrito(true);
+        ValidadorAprovacao validador = new ValidadorAprovacao();
+        Usuario solicitante = new Usuario(1L, "sol", Usuario.Perfil.SOLICITANTE);
+        Reserva reservaComum = new Reserva();
+        reservaComum.setRecurso(salaComum);
+        Reserva reservaRestrita = new Reserva();
+        reservaRestrita.setRecurso(salaRestrita);
+
+        assertThatNoException().isThrownBy(() -> {
+            validador.validarAprovacao(reservaComum, solicitante);
+            validador.validarAprovacao(reservaRestrita, solicitante);
+        });
+    }
+
     private Reserva reservaSolicitada(Long id, Recurso recurso) {
         Reserva reserva = new Reserva();
         reserva.setId(id);

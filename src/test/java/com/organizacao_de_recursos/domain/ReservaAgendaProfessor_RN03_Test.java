@@ -28,6 +28,26 @@ import static org.assertj.core.api.Assertions.*;
 @DisplayName("RN-03: Agenda do Professor")
 class ReservaAgendaProfessor_RN03_Test {
 
+    @Test
+    @DisplayName("removerAgenda: libera a agenda do professor (D4); chamada repetida não lança")
+    void removerAgenda_liberaEIgnoraSeNaoEncontrado() {
+        Professor professor = new Professor(1L, "Prof X");
+        professor.adicionarAgenda(SEG_08H, SEG_09H);
+
+        professor.removerAgenda(SEG_08H, SEG_09H);
+        assertThat(professor.temConflito(SEG_08H, SEG_09H)).isFalse();
+
+        // período que nunca esteve na agenda: não lança, apenas não encontra nada para remover
+        assertThatNoException().isThrownBy(() -> professor.removerAgenda(TER_08H, TER_09H));
+    }
+
+    @Test
+    @DisplayName("validarFormatoAgenda: formato válido não lança")
+    void validarFormatoAgenda_valido() {
+        Professor professor = new Professor(1L, "Prof X");
+        assertThatNoException().isThrownBy(() -> professor.validarFormatoAgenda("08:00", "09:00"));
+    }
+
     private static final LocalDateTime SEG_08H = LocalDateTime.of(2026, 9, 21, 8, 0);
     private static final LocalDateTime SEG_09H = LocalDateTime.of(2026, 9, 21, 9, 0);
     private static final LocalDateTime SEG_10H = LocalDateTime.of(2026, 9, 21, 10, 0);

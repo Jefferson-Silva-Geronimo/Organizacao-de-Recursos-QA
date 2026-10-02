@@ -1426,6 +1426,30 @@ A utility tree prioriza os cenários com maior impacto nos riscos RA-01 a RA-16.
 - **Cenários:** ATAM-06 a ATAM-12, ATAM-15, ATAM-18.
 - **Evidência esperada:** medição de duração, consumo, armazenamento e retenção em cenário aprovado.
 
+### ADR-015: adoção formal do Spring Boot 3.x e decisões de negócio D1–D8
+
+- **Status:** APROVADO.
+- **Contexto:** o núcleo era uma biblioteca de domínio Java pura (pacote único `com.organizacao_de_recursos.domain`), sem Spring, sem persistência, sem API e sem ponto de entrada executável — violando diretamente RNF-01. Uma avaliação ATAM (`docs/avaliacao-arquitetural/ciclo-01.md`) confirmou 15 defeitos reais no domínio (sondas P1–P15) decorrentes dessa ausência de infraestrutura e de decisões de negócio pendentes (Q-002 a Q-006).
+- **Forças:** executabilidade (RNF-01), integridade de dados, autorização real, prazo do ciclo e reaproveitamento do domínio já testado (163 testes).
+- **Alternativas:** manter biblioteca em memória e simular execução via testes; adotar outro framework MVC; adotar Spring Boot 3.x conforme RNF-01.
+- **Decisão:** adotar Spring Boot 3.5.x (última versão estável da série 3.x) com Maven, PostgreSQL via Flyway, Spring Data JPA e Spring Security, reaproveitando o domínio existente. A equipe aprova, nesta decisão, as regras de negócio D1 a D8 do plano de migração:
+  - **D1:** Spring Boot adotado agora (este ADR).
+  - **D2:** toda reserva nasce `SOLICITADA`; recurso não restrito é aprovado automaticamente (`SOLICITADA → APROVADA`) na mesma transação da criação, com auditoria das duas transições.
+  - **D3:** `SOLICITADA`, `APROVADA` e `EM_USO` ocupam o recurso; `REJEITADA`, `CANCELADA`, `NAO_COMPARECEU` e `CONCLUIDA` liberam.
+  - **D4:** cancelar libera recurso e agenda imediatamente; só é permitido antes de `EM_USO`.
+  - **D5:** manutenção é um tipo de bloqueio (`MANUTENCAO`/`ADMINISTRATIVO`); bloqueio que conflite com reservas ativas é recusado.
+  - **D6:** o Responsável só aprova/rejeita reservas dos recursos a ele atribuídos (`recurso.responsavel_id`).
+  - **D7:** intervalo semiaberto `[início, fim)` — adjacentes não conflitam; duração mínima 15 min, máxima 8h; fuso `America/Sao_Paulo`, persistido como `timestamptz`; não é permitido criar/alterar reserva com início no passado.
+  - **D8:** nenhuma reserva é apagada fisicamente; a partir de `EM_USO` o estado nunca mais é removido.
+
+  Além de D1–D8, ficam fechadas três decisões complementares identificadas ao reativar os testes `@Disabled` da suíte original: usuário mantém **um único perfil** (RF-01); auditoria registra **apenas mudanças de estado efetivas**, não tentativas recusadas (RN-09); e o desempate de eventos de auditoria com timestamp idêntico usa **`ocorrido_em` seguido do id sequencial de inserção** (RN-09/RN-04).
+- **Consequências positivas:** resolve o limitador "aplicação não executa"; destrava 14 dos 16 testes `@Disabled` da suíte original; dá base executável para as ondas seguintes (model, segurança, API, view).
+- **Consequências negativas:** a série 3.x do Spring Boot já tem sucessora (4.x) disponível; a escolha por 3.x segue o requisito explícito do produto (RNF-01) e deve ser revisitada em um ciclo futuro.
+- **Riscos:** nenhuma migração de framework é isenta de atrito; mitigado por reaproveitar o domínio existente em vez de reescrevê-lo.
+- **Requisitos relacionados:** RNF-01 (satisfeito diretamente), RN-01 a RN-09, RF-01, RF-10 a RF-17.
+- **Cenários:** CEN-01, CEN-03, CEN-04, CEN-05, CEN-06, CEN-07 (ciclo-01.md).
+- **Evidência esperada:** `mvn spring-boot:run` sobe a aplicação; `/actuator/health` retorna `UP`; migrations Flyway aplicam contra PostgreSQL real.
+
 ## 38. Matriz requisito → decisão → componente → evidência
 
 | Requisito/origem | Decisão ou ADR | Componente/artefato | Evidência esperada | Estado da cobertura |

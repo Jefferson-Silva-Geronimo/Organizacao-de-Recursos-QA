@@ -1,6 +1,5 @@
 package com.organizacao_de_recursos.domain;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -8,7 +7,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RN-06: Aprovação de Recursos Restritos
@@ -24,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - T-RN06-006: Conflicts - Responsável aprova recurso que ficou indisponível
  * - T-RN06-007: Conflicts - Responsável aprova duplicada (duas simultâneas)
  * - T-RN06-008: Invalid Input - Recurso inexistente marcado como restrito
- * - T-RN06-009: Boundary - Responsável autorizado para recurso A tenta aprovar recurso B [BLOQUEADO_POR_LACUNA]
+ * - T-RN06-009: Boundary - Responsável autorizado para recurso A tenta aprovar recurso B
  * - T-RN06-010: Forbidden State - Tentar aprovar recurso já aprovado
  */
 @DisplayName("RN-06: Aprovação de Recursos Restritos")
@@ -207,10 +205,21 @@ class ReservaAprovacao_RN06_Test {
     }
 
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: 'Recusada (se implementado) OU aceita (PENDENTE de decisão)' - responsabilidade do Responsável por recurso (Q-004)")
     @DisplayName("T-RN06-009: Boundary - Responsável autorizado para recurso A tenta aprovar recurso B")
     void deveRecusarAprovacaoDeRecursoForaDaResponsabilidade() {
-        fail("Caso bloqueado: divisão de responsabilidade do Responsável indefinida no plano (Q-004)");
+        // Arrange - D6: Responsável só aprova reservas dos recursos a ele atribuídos
+        Recurso recursoA = new Recurso(10L, "Sala A", Recurso.TipoRecurso.SALA);
+        recursoA.setRestrito(true);
+        Usuario responsavel = new Usuario(2L, "user2", Usuario.Perfil.RESPONSAVEL);
+        Reserva reserva = reservaSolicitada(1L, recursoA);
+        ValidadorAprovacao validador = new ValidadorAprovacao();
+        Long recursoPermitidoId = 99L; // Responsável só responde pelo recurso 99, não pelo 10
+
+        // Act & Assert
+        assertThatThrownBy(() -> validador.aprovarComEscopo(reserva, responsavel, recursoPermitidoId))
+                .isInstanceOf(ReservaAprovacaoException.class)
+                .hasMessageContaining("Recurso fora de sua responsabilidade");
+        assertThat(reserva.getEstado()).isEqualTo("SOLICITADA");
     }
 
     @Test

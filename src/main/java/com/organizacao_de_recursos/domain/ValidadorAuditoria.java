@@ -96,9 +96,10 @@ public class ValidadorAuditoria {
         auditoriasPorReserva.computeIfAbsent(reserva.getId(), k -> new ArrayList<>()).add(auditoria);
     }
 
+    /** Ordena por timestamp e desempata por id (ordem de inserção) quando o timestamp coincide (corrige RN-09/RN-04). */
     public List<Auditoria> obterAuditoriasOrdenadas(Long reservaId) {
         List<Auditoria> auditorias = new ArrayList<>(obterAuditorias(reservaId));
-        auditorias.sort(java.util.Comparator.comparing(Auditoria::getTimestamp));
+        auditorias.sort(java.util.Comparator.comparing(Auditoria::getTimestamp).thenComparing(Auditoria::getId));
         return auditorias;
     }
 

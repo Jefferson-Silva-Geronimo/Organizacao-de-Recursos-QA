@@ -1,13 +1,11 @@
 package com.organizacao_de_recursos.domain;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RN-01: Ordem Temporal da Reserva
@@ -18,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Casos de teste mapeados:
  * - T-RN01-001: Happy Path - Reserva com intervalo válido
  * - T-RN01-002: Happy Path - Intervalo longo
- * - T-RN01-003: Boundary - Intervalo mínimo (1 minuto) [BLOQUEADO_POR_LACUNA]
+ * - T-RN01-003: Boundary - Intervalo no limite da duração mínima (15 minutos, D7)
  * - T-RN01-004: Boundary - Intervalo zero (início = fim)
  * - T-RN01-005: Invalid Input - Fim anterior ao início
  * - T-RN01-006: Invalid Input - Data passada
@@ -63,10 +61,30 @@ class ReservaTemporal_RN01_Test {
     }
 
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: plano não define a duração mínima (§4.3) - resultado 'Reserva aceita ou recusada conforme política (PENDENTE)'")
-    @DisplayName("T-RN01-003: Boundary - Intervalo mínimo (1 minuto)")
+    @DisplayName("T-RN01-003: Boundary - Intervalo no limite da duração mínima (15 minutos, D7)")
     void deveAceitarIntervaloMinimo() {
-        fail("Caso bloqueado: duração mínima de reserva indefinida no plano (§4.3)");
+        // Arrange - duração mínima definida em D7: 15 minutos
+        LocalDateTime inicio = FUTURO_08H;
+        LocalDateTime fim = FUTURO_08H.plusMinutes(15);
+        Reserva reserva = new Reserva();
+
+        // Act & Assert
+        assertThatNoException()
+                .isThrownBy(() -> reserva.validarTemporalidade(inicio, fim));
+    }
+
+    @Test
+    @DisplayName("T-RN01-003b: Boundary - Intervalo abaixo do mínimo (14 minutos) deve ser recusado")
+    void deveRecusarIntervaloAbaixoDoMinimo() {
+        // Arrange
+        LocalDateTime inicio = FUTURO_08H;
+        LocalDateTime fim = FUTURO_08H.plusMinutes(14);
+        Reserva reserva = new Reserva();
+
+        // Act & Assert
+        assertThatThrownBy(() -> reserva.validarTemporalidade(inicio, fim))
+                .isInstanceOf(ReservaTemporalException.class)
+                .hasMessageContaining("Duração mínima de 15 minutos");
     }
 
     @Test

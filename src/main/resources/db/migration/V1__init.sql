@@ -71,13 +71,17 @@ CREATE TABLE reserva (
 
 -- Uma linha por recurso (sala, professor ou material) envolvido na reserva.
 -- "ocupa" indica se a reserva, no estado atual, deve bloquear o recurso (D3).
+-- início/fim são colunas simples (mapeiam direto para JPA); o range para a
+-- exclusão abaixo é calculado por expressão, sem exigir um tipo tstzrange no Java.
 CREATE TABLE reserva_recurso (
     id           BIGSERIAL PRIMARY KEY,
     reserva_id   BIGINT       NOT NULL REFERENCES reserva (id),
     tipo_recurso VARCHAR(20)  NOT NULL CHECK (tipo_recurso IN ('SALA', 'PROFESSOR', 'MATERIAL')),
     recurso_id   BIGINT       NOT NULL,
-    periodo      TSTZRANGE    NOT NULL,
-    ocupa        BOOLEAN      NOT NULL DEFAULT TRUE
+    inicio       TIMESTAMPTZ  NOT NULL,
+    fim          TIMESTAMPTZ  NOT NULL,
+    ocupa        BOOLEAN      NOT NULL DEFAULT TRUE,
+    CONSTRAINT ck_reserva_recurso_periodo CHECK (fim > inicio)
 );
 
 -- Garantia de dupla-reserva (RN-04): o próprio banco rejeita qualquer
@@ -85,7 +89,7 @@ CREATE TABLE reserva_recurso (
 -- para o mesmo tipo_recurso+recurso_id enquanto "ocupa" for verdadeiro.
 ALTER TABLE reserva_recurso
     ADD CONSTRAINT ex_sem_sobreposicao
-        EXCLUDE USING gist (tipo_recurso WITH =, recurso_id WITH =, periodo WITH &&)
+        EXCLUDE USING gist (tipo_recurso WITH =, recurso_id WITH =, tstzrange(inicio, fim, '[)') WITH &&)
         WHERE (ocupa);
 
 CREATE INDEX idx_reserva_recurso_reserva ON reserva_recurso (reserva_id);
@@ -94,10 +98,12 @@ CREATE TABLE bloqueio (
     id           BIGSERIAL PRIMARY KEY,
     tipo_recurso VARCHAR(20)  NOT NULL CHECK (tipo_recurso IN ('SALA', 'PROFESSOR', 'MATERIAL')),
     recurso_id   BIGINT       NOT NULL,
-    periodo      TSTZRANGE    NOT NULL,
+    inicio       TIMESTAMPTZ  NOT NULL,
+    fim          TIMESTAMPTZ  NOT NULL,
     motivo       VARCHAR(20)  NOT NULL CHECK (motivo IN ('MANUTENCAO', 'ADMINISTRATIVO')),
     criado_por   BIGINT       REFERENCES usuario (id),
-    criado_em    TIMESTAMPTZ  NOT NULL DEFAULT now()
+    criado_em    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT ck_bloqueio_periodo CHECK (fim > inicio)
 );
 
 CREATE INDEX idx_bloqueio_recurso ON bloqueio (tipo_recurso, recurso_id);

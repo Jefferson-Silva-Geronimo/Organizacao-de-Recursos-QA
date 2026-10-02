@@ -1,12 +1,15 @@
 package com.organizacao_de_recursos.domain;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Classe de domínio representando um registro de Auditoria
  */
 public class Auditoria {
-    private Long id;
+    private static final AtomicLong CONTADOR_ID = new AtomicLong(0);
+
+    private final Long id;
     private Long reservaId;
     private String usuario;
     private String acao;
@@ -16,6 +19,7 @@ public class Auditoria {
     private String descricao;
 
     public Auditoria(Long reservaId, String usuario, String acao, String estadoNovo) {
+        this.id = CONTADOR_ID.incrementAndGet();
         this.reservaId = reservaId;
         this.usuario = usuario;
         this.acao = acao;

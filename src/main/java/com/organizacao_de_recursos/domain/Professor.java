@@ -62,6 +62,17 @@ public class Professor {
         agenda.add(new AgendaProfessor(novoInicio, novoFim));
     }
 
+    /** Remove a primeira entrada da agenda igual ao período informado (libera a agenda ao cancelar, D4). */
+    public void removerAgenda(LocalDateTime inicio, LocalDateTime fim) {
+        for (int indice = 0; indice < agenda.size(); indice++) {
+            AgendaProfessor ag = agenda.get(indice);
+            if (ag.getInicio().equals(inicio) && ag.getFim().equals(fim)) {
+                agenda.remove(indice);
+                break;
+            }
+        }
+    }
+
     // Getters
     public Long getId() {
         return id;

@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Validador para RN-02: Não Sobreposição do Mesmo Recurso
@@ -12,7 +13,14 @@ import java.util.List;
 public class ValidadorSobreposicao {
     private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
 
+    /** Estados que ocupam o recurso (D3); reservas em outros estados não geram conflito (corrige P2). */
+    private static final Set<String> ESTADOS_QUE_OCUPAM = Set.of("SOLICITADA", "APROVADA", "EM_USO");
+
     private final List<Reserva> reservasRegistradas = new ArrayList<>();
+
+    private boolean ocupaRecurso(Reserva reserva) {
+        return reserva.getEstado() == null || ESTADOS_QUE_OCUPAM.contains(reserva.getEstado());
+    }
 
     /**
      * Registra uma reserva como existente
@@ -29,6 +37,9 @@ public class ValidadorSobreposicao {
      */
     public synchronized void validarSobreposicao(Reserva novaReserva) {
         for (Reserva existente : reservasRegistradas) {
+            if (!ocupaRecurso(existente)) {
+                continue;
+            }
             Recurso emConflito = recursoEmComum(existente, novaReserva);
             // Verifica se há recurso em comum e sobreposição temporal
             if (emConflito != null && temSobreposicao(existente, novaReserva)) {
@@ -45,7 +56,7 @@ public class ValidadorSobreposicao {
     /** Informa se a reserva conflita com alguma existente (sala ou material em comum, período sobreposto). */
     public synchronized boolean existeConflito(Reserva reserva) {
         for (Reserva existente : reservasRegistradas) {
-            if (recursoEmComum(existente, reserva) != null && temSobreposicao(existente, reserva)) {
+            if (ocupaRecurso(existente) && recursoEmComum(existente, reserva) != null && temSobreposicao(existente, reserva)) {
                 return true;
             }
         }
@@ -64,6 +75,9 @@ public class ValidadorSobreposicao {
     public synchronized void validarAlteracaoReserva(Reserva reserva, LocalDateTime novoInicio, LocalDateTime novoFim) {
         for (Reserva existente : reservasRegistradas) {
             if (existente == reserva || (existente.getId() != null && existente.getId().equals(reserva.getId()))) {
+                continue;
+            }
+            if (!ocupaRecurso(existente)) {
                 continue;
             }
             if (recursoEmComum(existente, reserva) != null

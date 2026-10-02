@@ -1450,6 +1450,32 @@ A utility tree prioriza os cenários com maior impacto nos riscos RA-01 a RA-16.
 - **Cenários:** CEN-01, CEN-03, CEN-04, CEN-05, CEN-06, CEN-07 (ciclo-01.md).
 - **Evidência esperada:** `mvn spring-boot:run` sobe a aplicação; `/actuator/health` retorna `UP`; migrations Flyway aplicam contra PostgreSQL real.
 
+### ADR-016: entidades JPA separadas do domínio puro em memória
+
+- **Status:** APROVADO (ajustado durante a implementação da Onda 2).
+- **Contexto:** o plano original propunha anotar as classes de domínio existentes (`Reserva`, `Recurso`, `Professor`, `Usuario`, `Auditoria`) diretamente como entidades JPA. Ao implementar, dois obstáculos concretos apareceram: (1) o esquema de persistência (`reserva_recurso`) é deliberadamente polimórfico — uma linha genérica por `tipo_recurso`+`recurso_id`, para cobrir sala, professor e material sem um `@ManyToOne` direto a três tabelas diferentes; (2) a suíte de 163 testes originais instancia essas classes como POJOs puros (sem Spring, sem banco) e depende de seus construtores, tipos (`String estado`) e comportamento atuais — anotá-las romperia essa suíte ou exigiria reescrevê-la inteira.
+- **Forças:** reaproveitar o domínio testado, não quebrar a suíte existente, aderência ao esquema polimórfico já aprovado (seção 5 do plano de migração), simplicidade de mapeamento.
+- **Alternativas:** anotar as classes de domínio diretamente (plano original); criar entidades JPA separadas (`*Entity`) com um service de persistência que orquestra repositórios e o domínio puro corrigido; usar um mapeamento híbrido com `@MappedSuperclass`.
+- **Decisão:** manter o domínio puro em memória (`com.organizacao_de_recursos.domain`) intacto como camada de regras de negócio testável sem Spring/banco, e criar entidades JPA dedicadas em `com.organizacao_de_recursos.model` (`UsuarioEntity`, `SalaEntity`, `ReservaEntity`, `ReservaRecursoEntity`, `BloqueioEntity`, `EventoAuditoriaEntity`) para o caminho persistido real, orquestradas por `service.ReservaService`. `EstadoReserva` (enum) e `MaquinaDeEstados` centralizam a máquina de estados para a camada persistida; o domínio puro mantém `String estado` e `ValidadorFluxoEstados` por compatibilidade com os 163 testes originais.
+- **Consequências positivas:** zero regressão na suíte original (184 testes verdes ao final da Onda 2); mapeamento direto e simples para o esquema polimórfico; cada camada evolui independentemente.
+- **Consequências negativas:** duplicação conceitual entre `Usuario`/`UsuarioEntity`, `Reserva`/`ReservaEntity`, etc. — mitigado por cada uma ter uma responsabilidade clara (regra de negócio pura vs. persistência).
+- **Riscos:** divergência futura entre as duas representações se uma for corrigida sem a outra. Mitigação: toda correção de regra de negócio nesta onda foi aplicada nas DUAS camadas quando aplicável (ex.: checagem de perfil e de bloqueio existem tanto em `ServicoCriacaoReserva` quanto em `ReservaService`).
+- **Requisitos relacionados:** RNF-01, RN-01 a RN-09.
+- **Evidência esperada:** `mvn verify` com as duas camadas de teste (domínio puro + Testcontainers) verdes.
+
+### ADR-017: ValidadorConcorrencia mantido; garantia real de RN-04 é a constraint de exclusão
+
+- **Status:** APROVADO.
+- **Contexto:** a sonda P14 do ciclo-01.md identificou que `ValidadorConcorrencia` (lock por chave exata recurso+início+fim, em memória) não detecta sobreposição parcial e é código sem uso no caminho real de produção. O plano original propunha remover a classe. Ao inspecionar `ReservaUnicidadeConcorrencia_RN04_Test.java`, constatou-se que ela é exercitada por 5 testes passando (T-RN04-001, 002, 003, 004, 007) além dos 3 que estavam `@Disabled` — removê-la quebraria a suíte original.
+- **Forças:** não quebrar testes existentes (regra do plano de migração), dar uma garantia real de RN-04 no caminho persistido, manter o código honesto sobre o que cada mecanismo garante.
+- **Alternativas:** remover a classe e seus testes; mantê-la e documentar seu papel real; generalizar seu algoritmo para detectar sobreposição parcial (replicando a lógica da constraint do banco em memória, duplicando a fonte de verdade).
+- **Decisão:** manter `ValidadorConcorrencia` e sua suíte de testes inalterados — ela demonstra apenas bloqueio por chave exata (recurso+início+fim), um mecanismo didático/legado que nunca foi o caminho de produção. A garantia real de RN-04 para o sistema persistido é a constraint de exclusão da migration V1 (`ex_sem_sobreposicao`, `EXCLUDE USING gist`), provada por `ReservaServiceConcorrenciaTest` (20 threads reais contra o banco do container, `@RepeatedTest(3)`) e pelos testes de sobreposição parcial/adjacência em `ReservaServiceIntegracaoTest`.
+- **Consequências positivas:** zero regressão; garantia real documentada e testada; nenhuma duplicação de lógica de exclusão em Java.
+- **Consequências negativas:** o código legado permanece no repositório, podendo confundir quem não lê esta ADR.
+- **Riscos:** mitigado por este ADR e pelo Javadoc de `ReservaServiceConcorrenciaTest` apontarem explicitamente a substituição.
+- **Requisitos relacionados:** RN-04, RF-10, RF-13, RNF-09.
+- **Evidência esperada:** `ReservaServiceConcorrenciaTest` — exatamente 1 de 20 threads aceita, repetido 3x; `ReservaServiceIntegracaoTest` — sobreposição parcial rejeitada, períodos adjacentes aceitos (D7).
+
 ## 38. Matriz requisito → decisão → componente → evidência
 
 | Requisito/origem | Decisão ou ADR | Componente/artefato | Evidência esperada | Estado da cobertura |

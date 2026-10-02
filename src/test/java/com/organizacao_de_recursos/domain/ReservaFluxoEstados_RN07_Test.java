@@ -1,13 +1,11 @@
 package com.organizacao_de_recursos.domain;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Testes para RN-07: Fluxo de Estados
@@ -25,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - T-RN07-007: Conflicts - Rejeitar após APROVADA (transição retrógrada)
  * - T-RN07-008: Boundary - Transição na fronteira de tempo
  * - T-RN07-009: Invalid Input - Estado null ou vazio
- * - T-RN07-010: Forbidden State - NAO_COMPARECEU sem origem definida [BLOQUEADO_POR_LACUNA]
+ * - T-RN07-010: Forbidden State - NAO_COMPARECEU sem origem definida
  */
 @DisplayName("RN-07: Fluxo de Estados")
 class ReservaFluxoEstados_RN07_Test {
@@ -145,9 +143,10 @@ class ReservaFluxoEstados_RN07_Test {
     @Test
     @DisplayName("T-RN07-008: Boundary - Transição na fronteira de tempo")
     void deveAceitarTransicaoNaFronteiraDeTempo() {
-        // Arrange - início às 23:59:59 de um dia e término às 00:00:00 do dia seguinte
-        LocalDateTime inicio = LocalDateTime.now().plusDays(2).withHour(23).withMinute(59).withSecond(59).withNano(0);
-        LocalDateTime fim = inicio.plusSeconds(1);
+        // Arrange - início às 23:59:00 de um dia e término 15 minutos depois, já no dia seguinte
+        // (duração ajustada para 15 minutos conforme D7; a fronteira de virada de dia é o que este teste verifica)
+        LocalDateTime inicio = LocalDateTime.now().plusDays(2).withHour(23).withMinute(59).withSecond(0).withNano(0);
+        LocalDateTime fim = inicio.plusMinutes(15);
         ValidadorFluxoEstados validador = new ValidadorFluxoEstados();
         Reserva reserva = new Reserva();
         reserva.setEstado("SOLICITADA");
@@ -176,9 +175,16 @@ class ReservaFluxoEstados_RN07_Test {
                 .hasMessageContaining("Estado é obrigatório");
     }
     @Test
-    @Disabled("BLOQUEADO_POR_LACUNA: origem, ator e condição de NAO_COMPARECEU indefinidos (Q-006)")
     @DisplayName("T-RN07-010: Forbidden State - NAO_COMPARECEU sem origem definida")
     void deveRecusarNaoCompareceuDiretoDeSolicitada() {
-        fail("Caso bloqueado: fluxo de NAO_COMPARECEU indefinido no plano (Q-006)");
+        // Arrange - a máquina de estados só permite NAO_COMPARECEU a partir de APROVADA, nunca de SOLICITADA
+        ValidadorFluxoEstados validador = new ValidadorFluxoEstados();
+        Reserva reserva = new Reserva();
+        reserva.setEstado("SOLICITADA");
+
+        // Act & Assert
+        assertThatThrownBy(() -> validador.validarTransicao(reserva, "NAO_COMPARECEU"))
+                .isInstanceOf(ReservaFluxoEstadosException.class)
+                .hasMessageContaining("Transição não permitida");
     }
 }

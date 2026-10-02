@@ -1510,11 +1510,11 @@ A utility tree prioriza os cenários com maior impacto nos riscos RA-01 a RA-16.
 | RN-10, RNF-04 | Matriz de rastreabilidade | Governança | 100% dos requisitos críticos ligados a risco, teste e evidência | COBERTA DOCUMENTALMENTE |
 | RNF-02, RNF-03 | Gates JaCoCo | CI e testes | Relatório >= 80% linhas e >= 70% branches | EVIDÊNCIA NÃO EXECUTADA |
 | RNF-05 | Gate de defeitos | QA | 0 bugs críticos conhecidos | EVIDÊNCIA NÃO EXECUTADA |
-| RNF-06, RNF-13 | Gate de segurança | SonarCloud e testes | 0 vulnerabilidades críticas conhecidas | EVIDÊNCIA NÃO EXECUTADA |
-| RNF-07 | Persistência realista | Testes com banco containerizado | Execução Testcontainers nas áreas críticas | EVIDÊNCIA NÃO EXECUTADA |
-| RNF-09 | Concorrência automatizada | Teste concorrente | Uma reserva aceita por cenário | EVIDÊNCIA NÃO EXECUTADA |
-| RNF-10, RNF-11 | Testes em camadas e TDD/BDD | Suíte e histórico | Cinco tipos de teste e uma funcionalidade com evidência | EVIDÊNCIA NÃO EXECUTADA |
-| RNF-12 | CI em pull requests | GitHub Actions | Workflow executado em PR | EVIDÊNCIA NÃO EXECUTADA |
+| RNF-06, RNF-13 | Gate de segurança | SonarCloud e testes | 0 vulnerabilidades críticas conhecidas | PARCIAL (Onda 5): passo SonarCloud preparado em `.github/workflows/ci.yml` (condicional ao secret `SONAR_TOKEN`, ainda não cadastrado pela equipe) - execução real pendente |
+| RNF-07 | Persistência realista | Testes com banco containerizado | Execução Testcontainers nas áreas críticas | **COBERTA** (Onda 2-4): `ReservaServiceIntegracaoTest`, `ReservaServiceConcorrenciaTest`, `FluxoCompletoReservaTest` - Postgres real via Testcontainers |
+| RNF-09 | Concorrência automatizada | Teste concorrente | Uma reserva aceita por cenário | **COBERTA** (Onda 2): `ReservaServiceConcorrenciaTest` - 20 threads reais, `@RepeatedTest(3)`, exatamente 1 aceita por rodada |
+| RNF-10, RNF-11 | Testes em camadas e TDD/BDD | Suíte e histórico | Cinco tipos de teste e uma funcionalidade com evidência | **COBERTA** (Onda 1-4): unitário puro (domínio), unitário Mockito (`AutorizacaoReservaTest`), integração (Testcontainers), `@WebMvcTest` (controllers/segurança), caixa-preta ponta a ponta (`FluxoCompletoReservaTest`), WireMock (`NotificadorHttpTest`) |
+| RNF-12 | CI em pull requests | GitHub Actions | Workflow executado em PR | **COBERTA** - corrigido na Onda 5: o ciclo-01.md (DIV-12) já havia constatado que esta linha estava desatualizada; há 5+ execuções reais do workflow `CI` e a branch `main` está protegida (ver README.md, seção "Evidências de integração contínua") |
 | RNF-14 | Desempenho | JMeter | Plano e relatório com metas aprovadas | METAS PENDENTES |
 | CON-01 | ADR-006 a ADR-014 | Pipeline batch conceitual | Experimentos de incrementalidade, falha, sobreposição, qualidade, gates, rollback, LGPD e custo | FINALIDADE E MECANISMOS PENDENTES |
 
@@ -1905,3 +1905,64 @@ Permanecem sem associação segura, até esclarecimento da equipe: finalidade e 
 - **Correções realizadas:** reclassificação de falsos positivos; explicitação das três invariantes como parciais; controles batch; cenários ATAM-19 a ATAM-27; utility tree complementar; táticas de Len Bass; matriz suplementar; preservação de alternativas e histórico.
 - **Conclusão atual:** a entrega está **documentalmente completa quanto ao plano arquitetural e à avaliação crítica**, mas permanece **parcial quanto a decisões humanas, métricas ainda não definidas e experimentos futuros**. Portanto, não é permitido afirmar que os quatro prompts estejam integralmente satisfeitos enquanto esses itens forem critérios obrigatórios não decididos.
 - **Fundamento:** seções 46 a 50 desta arquitetura, seções 42 a 44 e 45.2, e a restrição de não inventar decisões, métricas ou evidências.
+
+## 52. Estado real da implementação (Ondas 1-5 — migração para Spring Boot)
+
+As seções 1 a 51 acima descrevem o **estado-alvo/aspiracional** vigente até o ciclo-01 do ATAM
+(`docs/avaliacao-arquitetural/ciclo-01.md`, branch `docs/atam-ciclo-01`), quando o núcleo era uma
+biblioteca de domínio Java pura, sem Spring, persistência, API ou interface. Esta seção descreve
+o que **realmente existe no código**, após as 5 ondas de migração (ADR-015 a ADR-018; commits na
+branch `feat/onda1-esqueleto-spring-boot`). Ela substitui a seção 14 (C4) para o núcleo online —
+a seção 14 permanece válida apenas para o batch `CON-01`, que continua 100% conceitual.
+
+### 52.1 C4 real — Contêineres
+
+```
+Cliente (navegador ou integração REST)
+        │
+        ▼
+Aplicação Spring Boot 3.5 (monólito único, Java 21)
+  ├─ /api/**  → API REST (JWT stateless) + Swagger UI (/swagger-ui.html)
+  └─ /**      → Páginas Thymeleaf (sessão + CSRF, form login)
+        │
+        ▼
+PostgreSQL 16 (Flyway: V1 schema, V2 conflito_evitado)
+```
+
+Não há fila de mensagens, cache distribuído, gateway ou serviço externo real — `NotificadorHttp`
+é o único ponto de integração externa, e aponta hoje para um placeholder (`NOTIFICACAO_BASE_URL`).
+O "Executor batch" e a "Observabilidade candidata" da seção 14 **não existem**; `CON-01`
+permanece não implementado (ADR-006 a ADR-014 seguem bloqueados, sem mudança nesta migração).
+
+### 52.2 Componentes reais do núcleo online
+
+| Componente (pacote) | Classes principais | Observação |
+|---|---|---|
+| `domain` | 41 classes de regra de negócio pura (sem Spring) | Reaproveitado do núcleo original, corrigido (P1-P15, ADR-016); testado por 150 testes unitários puros |
+| `domain.estado` | `EstadoReserva`, `MaquinaDeEstados` | Vocabulário tipado e ponto único de transição, usados pela camada persistida |
+| `model` | `UsuarioEntity`, `SalaEntity`, `ReservaEntity`, `ReservaRecursoEntity`, `BloqueioEntity`, `EventoAuditoriaEntity`, `ConflitoEvitadoEntity` | Entidades JPA separadas do domínio puro (ADR-016) |
+| `repository` | Spring Data JPA, um por entidade | — |
+| `service` | `ReservaService`, `RelatorioService`, `ConflitoEvitadoService` | Casos de uso transacionais; `ReservaService` só suporta sala como recurso reservável (ver pendências) |
+| `security` | `UsuarioPrincipal`, `UsuarioDetailsService`, `JwtService`, `JwtAuthenticationFilter`, `AutorizacaoReserva` | JWT + autorização de objeto (D6) |
+| `controller.api` | `AuthController`, `ReservaController`, `SalaController`, `BloqueioController`, `UsuarioController`, `RelatorioController` | REST, `/api/v1/**` |
+| `controller.web` | `PaginaController`, `ReservaWebController`, `SalaWebController` | Thymeleaf, reaproveitam os mesmos `service` da API |
+| `notification` | `Notificador` (porta), `NotificadorSimulado`, `NotificadorHttp`, `NotificacaoListener` | Disparo pós-commit (`@TransactionalEventListener`) |
+| `exception` | `GlobalExceptionHandler`, `TransicaoInvalidaException`, `ConflitoDeHorarioException` | `ProblemDetail` (RFC 9457) |
+
+### 52.3 Decisões efetivamente tomadas nesta migração (vs. pendentes na seção 37)
+
+ADR-002 (mecanismo de concorrência) estava "pendente de experimento" — **resolvido**: constraint
+de exclusão GiST na migration V1, não um dos mecanismos listados como alternativa (lock
+pessimista/otimista/slots). ADR-003 (autorização contextual) — **implementado** nas três camadas
+(rota/método/objeto, ADR-018). ADR-004 (consistência estado↔auditoria) — **implementado** via
+mesma transação (D2) + `@TransactionalEventListener(AFTER_COMMIT)` para a notificação (que fica
+fora da transação de propósito). ADR-005 (revalidação na confirmação) — **implementado**: bloqueio
+e disponibilidade são revalidados em `ReservaService.criar`, não apenas na pesquisa.
+
+### 52.4 Pendências conhecidas (ver relatório de status do projeto para o detalhe completo)
+
+`ReservaService` só modela **sala** como recurso reservável — professor e material (RF-03, RF-04,
+RF-15 a RF-17) não têm controller nem fluxo de criação de reserva persistido; só existem no
+domínio puro em memória (não migrado). Páginas Thymeleaf de bloqueios e usuários não foram
+construídas (só a API REST). `jacoco:check` e SonarCloud: ver `pom.xml` e `.github/workflows/ci.yml`
+para o estado exato do gate na data desta edição.

@@ -48,15 +48,31 @@ public class SalaEntity {
         return nome;
     }
 
+    public void setNome(String nome) {
+        this.nome = nome;
+    }
+
     public boolean isRestrito() {
         return restrito;
+    }
+
+    public void setRestrito(boolean restrito) {
+        this.restrito = restrito;
     }
 
     public boolean isAtivo() {
         return ativo;
     }
 
+    public void setAtivo(boolean ativo) {
+        this.ativo = ativo;
+    }
+
     public Long getResponsavelId() {
         return responsavelId;
+    }
+
+    public void setResponsavelId(Long responsavelId) {
+        this.responsavelId = responsavelId;
     }
 }

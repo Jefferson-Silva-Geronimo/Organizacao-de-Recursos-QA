@@ -54,6 +54,10 @@ public class UsuarioEntity {
         return username;
     }
 
+    public String getSenhaHash() {
+        return senhaHash;
+    }
+
     public Usuario.Perfil getPerfil() {
         return perfil;
     }

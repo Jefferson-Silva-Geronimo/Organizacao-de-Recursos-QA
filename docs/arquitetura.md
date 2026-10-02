@@ -1476,6 +1476,19 @@ A utility tree prioriza os cenários com maior impacto nos riscos RA-01 a RA-16.
 - **Requisitos relacionados:** RN-04, RF-10, RF-13, RNF-09.
 - **Evidência esperada:** `ReservaServiceConcorrenciaTest` — exatamente 1 de 20 threads aceita, repetido 3x; `ReservaServiceIntegracaoTest` — sobreposição parcial rejeitada, períodos adjacentes aceitos (D7).
 
+### ADR-018: autenticação JWT stateless na API; três camadas de autorização
+
+- **Status:** APROVADO.
+- **Contexto:** o core limitador "falha de autorização" exige autenticação real e autorização verificada em três níveis independentes (rota, método, objeto — ADR-003), não apenas checagem de perfil isolada como no domínio original (P3, P12).
+- **Forças:** simplicidade operacional (API sem estado de sessão), compatibilidade com um futuro front-end desacoplado, aderência ao RNF-15 (segurança de autenticação/autorização).
+- **Alternativas:** sessão HTTP + cookie para a API; JWT assinado (HS256) sem estado; OAuth2/OIDC completo (desproporcional ao escopo acadêmico).
+- **Decisão:** `/api/**` usa autenticação stateless via JWT (HS256, `io.jsonwebtoken`/jjwt 0.13.0, segredo configurável por `JWT_SECRET`, validade 120 min). As páginas Thymeleaf da Onda 4 usarão sessão + CSRF numa segunda `SecurityFilterChain`, já prevista na configuração (`@Order(2)`), por ora apenas liberando o essencial (actuator/swagger). Três camadas de autorização, todas testadas: **rota** (`SecurityConfig`, `anyRequest().authenticated()` + `permitAll` no login), **método** (`@PreAuthorize("hasRole(...)")` nos controllers) e **objeto** (`AutorizacaoReserva` — propriedade da reserva e escopo do Responsável via `sala.responsavel_id`, D6). A camada de objeto é redundante de propósito com a checagem já feita dentro do `ReservaService` (defesa em profundidade): o service é a camada autoritativa, o `@PreAuthorize` é o fast-fail.
+- **Consequências positivas:** corrige P3 e P12; autorização de objeto testada isoladamente (`AutorizacaoReservaTest`) e via `@WebMvcTest`; erros de autenticação/autorização nunca expõem detalhe interno (reaproveita `TradutorErros` via `GlobalExceptionHandler`).
+- **Consequências negativas:** token sem revogação server-side (JWT stateless clássico) — aceitável dado o prazo acadêmico; revisar se houver requisito de logout imediato.
+- **Riscos:** segredo fraco em produção — mitigado por exigir `JWT_SECRET` via variável de ambiente fora do perfil `dev`.
+- **Requisitos relacionados:** RF-01, RNF-15, RN-06.
+- **Evidência esperada:** `AutorizacaoReservaTest` (6 casos), `AuthControllerWebMvcTest`/`ReservaControllerWebMvcTest`/`SalaControllerWebMvcTest` (401/403/404/422 por endpoint).
+
 ## 38. Matriz requisito → decisão → componente → evidência
 
 | Requisito/origem | Decisão ou ADR | Componente/artefato | Evidência esperada | Estado da cobertura |

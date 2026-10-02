@@ -19,3 +19,14 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+app:
+  security:
+    jwt:
+      # Trocar via variável de ambiente JWT_SECRET em qualquer ambiente real; valor abaixo é só para dev/test.
+      secret: "${JWT_SECRET:troque-este-segredo-em-producao-por-uma-chave-aleatoria-de-32-bytes-ou-mais}"
+      validade-minutos: 120
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

@@ -1,5 +1,7 @@
 package com.organizacao_de_recursos.service;
 
+import com.organizacao_de_recursos.domain.AcessoNegadoException;
+import com.organizacao_de_recursos.domain.ReservaAprovacaoException;
 import com.organizacao_de_recursos.domain.ReservaCriacaoException;
 import com.organizacao_de_recursos.domain.Usuario;
 import com.organizacao_de_recursos.domain.estado.EstadoReserva;
@@ -24,6 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 
 /**
  * Criação de reserva na camada persistida (seção 5/6 do plano de migração).
@@ -127,5 +132,97 @@ public class ReservaService {
 
     private void registrarAuditoria(Long reservaId, EstadoReserva anterior, EstadoReserva novo, Long atorId) {
         eventoAuditoriaRepository.save(new EventoAuditoriaEntity(reservaId, anterior, novo, atorId));
+    }
+
+    public ReservaEntity buscarPorId(Long id) {
+        return reservaRepository.findById(id).orElseThrow(() -> new NoSuchElementException("Reserva não encontrada"));
+    }
+
+    public List<ReservaEntity> listarDoSolicitante(Long solicitanteId) {
+        return reservaRepository.findBySolicitanteId(solicitanteId);
+    }
+
+    public List<ReservaEntity> listarTodas() {
+        return reservaRepository.findAll();
+    }
+
+    /** Reservas dos recursos atribuídos ao Responsável (D6). */
+    public List<ReservaEntity> listarNoEscopoDoResponsavel(Long responsavelId) {
+        return reservaRepository.findAll().stream()
+                .filter(reserva -> escopoDoResponsavel(reserva, responsavelId))
+                .toList();
+    }
+
+    /** Cancela a reserva do próprio solicitante; libera o recurso (D4, corrige P2). */
+    @Transactional
+    public ReservaEntity cancelar(Long reservaId, Long solicitanteId) {
+        ReservaEntity reserva = buscarPorId(reservaId);
+        if (!Objects.equals(reserva.getSolicitanteId(), solicitanteId)) {
+            throw new AcessoNegadoException("Acesso negado. Somente o solicitante da reserva pode cancelá-la");
+        }
+        EstadoReserva anterior = reserva.getEstado();
+        maquinaDeEstados.validarTransicao(anterior, EstadoReserva.CANCELADA);
+        reserva.setEstado(EstadoReserva.CANCELADA);
+        for (ReservaRecursoEntity recurso : reservaRecursoRepository.findByReservaId(reservaId)) {
+            recurso.setOcupa(false);
+        }
+        registrarAuditoria(reservaId, anterior, EstadoReserva.CANCELADA, solicitanteId);
+        return reserva;
+    }
+
+    /** Aprova a reserva; só o Responsável do recurso pode (D6, corrige P12). */
+    @Transactional
+    public ReservaEntity aprovar(Long reservaId, Long responsavelId) {
+        UsuarioEntity responsavel = usuarioRepository.findById(responsavelId)
+                .orElseThrow(() -> new AcessoNegadoException("Acesso negado"));
+        if (responsavel.getPerfil() != Usuario.Perfil.RESPONSAVEL) {
+            throw new AcessoNegadoException("Acesso negado. Apenas Responsável pode aprovar");
+        }
+        ReservaEntity reserva = buscarPorId(reservaId);
+        if (!escopoDoResponsavel(reserva, responsavelId)) {
+            throw new ReservaAprovacaoException("Recurso fora de sua responsabilidade");
+        }
+        EstadoReserva anterior = reserva.getEstado();
+        maquinaDeEstados.validarTransicao(anterior, EstadoReserva.APROVADA);
+        reserva.setEstado(EstadoReserva.APROVADA);
+        reserva.setAprovadorId(responsavelId);
+        registrarAuditoria(reservaId, anterior, EstadoReserva.APROVADA, responsavelId);
+        return reserva;
+    }
+
+    /** Rejeita a reserva; só o Responsável do recurso pode (D6). */
+    @Transactional
+    public ReservaEntity rejeitar(Long reservaId, Long responsavelId) {
+        UsuarioEntity responsavel = usuarioRepository.findById(responsavelId)
+                .orElseThrow(() -> new AcessoNegadoException("Acesso negado"));
+        if (responsavel.getPerfil() != Usuario.Perfil.RESPONSAVEL) {
+            throw new AcessoNegadoException("Acesso negado. Apenas Responsável pode rejeitar");
+        }
+        ReservaEntity reserva = buscarPorId(reservaId);
+        if (!escopoDoResponsavel(reserva, responsavelId)) {
+            throw new ReservaAprovacaoException("Recurso fora de sua responsabilidade");
+        }
+        EstadoReserva anterior = reserva.getEstado();
+        maquinaDeEstados.validarTransicao(anterior, EstadoReserva.REJEITADA);
+        reserva.setEstado(EstadoReserva.REJEITADA);
+        reserva.setAprovadorId(responsavelId);
+        for (ReservaRecursoEntity recurso : reservaRecursoRepository.findByReservaId(reservaId)) {
+            recurso.setOcupa(false);
+        }
+        registrarAuditoria(reservaId, anterior, EstadoReserva.REJEITADA, responsavelId);
+        return reserva;
+    }
+
+    /** Escopo do Responsável (D6): só responde pelas salas que lhe foram atribuídas. */
+    boolean escopoDoResponsavel(ReservaEntity reserva, Long responsavelId) {
+        for (ReservaRecursoEntity recurso : reservaRecursoRepository.findByReservaId(reserva.getId())) {
+            if (recurso.getTipoRecurso() == TipoRecursoReserva.SALA) {
+                SalaEntity sala = salaRepository.findById(recurso.getRecursoId()).orElse(null);
+                if (sala != null && responsavelId.equals(sala.getResponsavelId())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
